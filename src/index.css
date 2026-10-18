@@ -1,0 +1,188 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 33% 98%;
+    --foreground: 222 14% 9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 14% 9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 14% 9%;
+    --primary: 215 49% 28%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 38 23% 95%;
+    --secondary-foreground: 222 14% 9%;
+    --muted: 38 23% 95%;
+    --muted-foreground: 215 12% 34%;
+    --accent: 38 23% 95%;
+    --accent-foreground: 222 14% 9%;
+    --destructive: 0 72% 41%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 38 18% 89%;
+    --input: 38 18% 89%;
+    --ring: 215 49% 28%;
+    --chart-1: 215 49% 28%;
+    --chart-2: 140 61% 26%;
+    --chart-3: 32 100% 30%;
+    --chart-4: 0 72% 41%;
+    --chart-5: 45 100% 66%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    font-family: Inter, 'Noto Sans Devanagari', system-ui, sans-serif;
+  }
+  html[lang] {
+    /* default; overridden by JS root style */
+  }
+  body {
+    @apply bg-paper text-ink;
+    font-feature-settings: 'cv11', 'ss01';
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* High contrast mode: applied via .hc class on <html> */
+html.hc {
+  --hc-ink: #000000;
+  --hc-border: #12161F;
+  --hc-primary: #0F2A4D;
+}
+html.hc body {
+  @apply bg-white;
+  color: #000000;
+}
+html.hc .text-ink {
+  color: #000000 !important;
+}
+html.hc .text-muted {
+  color: #000000 !important;
+  opacity: 0.85;
+}
+html.hc .bg-paper {
+  background-color: #ffffff !important;
+}
+html.hc .bg-surface {
+  background-color: #ffffff !important;
+}
+html.hc .border-border,
+html.hc .border {
+  border-color: #12161F !important;
+  border-width: 2px !important;
+}
+html.hc .border-primary {
+  border-color: #0F2A4D !important;
+}
+html.hc .border-l-danger,
+html.hc .border-danger {
+  border-color: #B3261E !important;
+}
+html.hc .bg-primary {
+  background-color: #0F2A4D !important;
+}
+html.hc .text-primary {
+  color: #0F2A4D !important;
+}
+html.hc .bg-primary\/5 {
+  background-color: rgba(15, 42, 77, 0.08) !important;
+}
+html.hc .bg-highlight {
+  background-color: #FFE9A8 !important;
+}
+
+/* High-contrast chips: white backgrounds with 2px colored borders */
+html.hc .bg-chip-danger {
+  background-color: #ffffff !important;
+  border: 2px solid #B3261E !important;
+}
+html.hc .bg-chip-warn {
+  background-color: #ffffff !important;
+  border: 2px solid #9A5B00 !important;
+}
+html.hc .bg-chip-safe {
+  background-color: #ffffff !important;
+  border: 2px solid #17683B !important;
+}
+html.hc .text-danger {
+  color: #B3261E !important;
+}
+html.hc .text-warn {
+  color: #9A5B00 !important;
+}
+html.hc .text-safe {
+  color: #17683B !important;
+}
+
+/* Hindi language helpers */
+html.lang-hi .lang-hi-text {
+  font-family: 'Noto Sans Devanagari', Inter, sans-serif;
+}
+
+@layer base {
+  :focus-visible {
+    outline: 3px solid #24406B;
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
+@layer components {
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-primary focus:text-white focus:rounded-md focus:font-medium;
+  }
+}
+
+@layer utilities {
+  @keyframes clause-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .animate-clause-fade {
+    animation: clause-fade 150ms ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-clause-fade {
+      animation: none;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* Cap dialog and card shadows to the allowed maximum */
+[data-radix-dialog-content],
+.lg\:shadow-lg,
+.shadow-lg {
+  box-shadow: 0 1px 2px rgba(18, 22, 31, 0.06) !important;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #ffffff !important;
+  }
+}
