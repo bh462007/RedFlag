@@ -64,6 +64,7 @@ export function ReadingOptionsProvider({ children }: { children: ReactNode }) {
     const root = document.documentElement;
     root.style.fontSize = fontSizePercent[options.fontSize];
     root.classList.toggle('hc', options.highContrast);
+    document.body.classList.toggle('high-contrast', options.highContrast);
     root.classList.toggle('lang-hi', options.language === 'hi');
   }, [options]);
 

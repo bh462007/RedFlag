@@ -1,83 +1,149 @@
-import { Link } from 'react-router-dom';
-import { ArrowRight, Eye } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
-import { clauses } from '@/data';
-import { useReadingOptions } from '@/components/ReadingOptionsContext';
+import { useAnalysis } from '@/context/AnalysisContext';
+import { sampleMessage } from '@/data';
 import { cn } from '@/lib/utils';
 
 export function Landing() {
-  const deposit = clauses[0];
-  const risky = deposit.variants.find((v) => v.tone === 'danger')!;
-  const { language } = useReadingOptions();
-  const isHindi = language === 'hi';
-  const h1 = isHindi
-    ? 'आपका किरायानामा, आपकी भाषा में।'
-    : 'Your lease, in language you actually speak.';
+  const { text, setText } = useAnalysis();
+  const navigate = useNavigate();
+  const [highlightVisible, setHighlightVisible] = useState(false);
+
+  useEffect(() => {
+    if (!text || text.trim() === '') {
+      setText(sampleMessage);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+      if (mediaQuery.matches) {
+        setHighlightVisible(true);
+        return;
+      }
+      const raf = requestAnimationFrame(() => {
+        setHighlightVisible(true);
+      });
+      return () => cancelAnimationFrame(raf);
+    } else {
+      setHighlightVisible(true);
+    }
+  }, []);
 
   return (
-    <div className="min-h-screen bg-paper">
-      <main
-        id="main"
-        className="mx-auto flex min-h-screen w-full max-w-[1200px] flex-col items-center justify-center gap-12 px-6 py-16 lg:flex-row lg:items-center lg:gap-16"
-      >
-        {/* Left column 55% */}
-        <div className="flex w-full flex-col items-start gap-6 lg:w-[55%]">
-          <h1 className={cn('text-4xl font-semibold leading-[1.1] text-ink sm:text-5xl lg:text-[56px]', isHindi && 'font-devanagari')}>
-            {h1}
-          </h1>
-          <p className="max-w-[520px] text-lg leading-relaxed text-muted">
-            Paste your rental agreement. Get every clause explained in plain
-            English: what it means, what it could cost you, and what to ask the
-            landlord to change.
+    <main
+      id="main"
+      className="flex min-h-screen w-full items-center justify-center bg-paper px-6 py-12 md:px-12 md:py-16"
+    >
+      <div className="flex w-full max-w-[1240px] flex-col items-center justify-between gap-8 md:flex-row md:items-center">
+        {/* Left column — Message Check (55%) */}
+        <div className="flex w-full flex-col items-start md:w-[55%]">
+          {/* 4.1 Section label */}
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">
+            01 — MESSAGE CHECK
           </p>
-          <div className="flex w-full flex-col gap-2 sm:flex-row sm:w-auto">
-            <Link to="/processing" className="w-full sm:w-auto">
-              <Button variant="primary" className="w-full sm:w-auto">
-                Check my lease
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
-            <Link to="/processing" className="w-full sm:w-auto">
-              <Button variant="secondary" className="w-full sm:w-auto">
-                <Eye className="h-4 w-4" />
-                See a sample lease
-              </Button>
-            </Link>
+
+          {/* 4.2 Main heading */}
+          <h1 className="font-display text-4xl leading-[1.05] tracking-[-0.02em] text-ink sm:text-5xl md:text-[56px]">
+            That internship offer. Is it <em className="italic">real</em>?
+          </h1>
+
+          {/* 4.3 Supporting paragraph */}
+          <p className="mt-4 max-w-[520px] font-sans text-base leading-[1.6] text-muted md:text-[18px]">
+            Paste any internship offer, scholarship link, or forwarded message.
+            RedFlag explains the scam signals in plain English, gives a trust score,
+            and tells you exactly what to check next.
+          </p>
+
+          {/* 4.4 Controlled message textarea */}
+          <div className="mt-6 w-full max-w-[520px]">
+            <label htmlFor="message-input" className="sr-only">
+              Message, offer, or link to check
+            </label>
+            <textarea
+              id="message-input"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Paste the message, offer, or link here…"
+              className="min-h-[120px] w-full max-w-[520px] rounded-lg border border-border bg-surface p-4 font-sans text-[16px] text-ink placeholder:text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            />
           </div>
-          <p className="text-sm text-muted">
-            Your document is never stored. Works on a phone. Not legal advice.
+
+          {/* 4.5 Buttons */}
+          <div className="mt-6 flex w-full flex-col gap-4 sm:flex-row sm:w-auto">
+            <Button
+              variant="primary"
+              onClick={() => navigate('/processing')}
+              className="w-full sm:w-auto"
+            >
+              Check this message
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => navigate('/clause')}
+              className="w-full sm:w-auto"
+            >
+              See a sample check
+            </Button>
+          </div>
+
+          {/* 4.6 Footer disclaimer */}
+          <p className="mt-8 max-w-[520px] text-[14px] leading-relaxed text-muted">
+            No message is stored. Nothing leaves your browser unless you click Check.
+            Not a substitute for professional advice.
           </p>
         </div>
 
-        {/* Right column 45% */}
-        <div className="w-full lg:w-[45%]">
-          <div className="flex justify-center lg:justify-end">
-            <div className="w-full max-w-[380px] rounded-lg border border-border bg-surface p-6 shadow-[0_1px_2px_rgba(18,22,31,0.06)]">
-              <div className="mb-4 flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wide text-muted">
-                  {deposit.number}
-                </span>
-                <Chip tone="danger">{risky.label}</Chip>
+        {/* Right column — Layered Document Composition (45%) */}
+        <div className="flex w-full items-center justify-center md:w-[45%] md:justify-end">
+          <div className="relative w-full max-w-[400px]">
+            {/* 5.2 Back card */}
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 hidden -translate-y-3 translate-x-3 rotate-[3deg] rounded-lg bg-border md:block"
+            />
+
+            {/* 5.3 Front card */}
+            <div className="relative z-10 flex w-full flex-col gap-4 rounded-lg border border-border bg-surface p-6 shadow-[0_8px_24px_rgba(20,24,29,0.06)] md:rotate-[1.5deg] md:p-8">
+              {/* A. Hanging clause number */}
+              <p className="font-display text-[13px] italic text-muted">4.2</p>
+
+              {/* B. Danger Chip */}
+              <div className="w-fit">
+                <Chip tone="danger">
+                  Can cost you <span className="tnum">₹1,68,000</span>
+                </Chip>
               </div>
-              <h3 className="mb-4 text-xl font-semibold text-ink">
-                {deposit.title}
-              </h3>
-              <p className="mb-4 text-sm leading-relaxed text-ink">
-                You pay ₹1,68,000 upfront. You get it back whenever the
-                landlord decides, minus whatever the landlord says the damages
-                are.
+
+              {/* C. Document heading */}
+              <h2 className="font-display text-[28px] leading-tight text-ink">
+                Security deposit
+              </h2>
+
+              {/* D. Supporting line */}
+              <p className="text-[14px] text-muted">
+                Six months&apos; rent before you move in.
               </p>
-              <div className="rounded-lg bg-highlight p-2">
-                <p className="text-xs leading-relaxed text-ink">
-                  &ldquo;The deposit shall be refunded at the landlord&rsquo;s
-                  discretion upon vacating&hellip;&rdquo;
-                </p>
-              </div>
+
+              {/* E. Highlighted lease clause */}
+              <p
+                className={cn(
+                  'rounded bg-highlight p-2 font-sans text-[14px] leading-relaxed text-ink transition-opacity duration-200 motion-reduce:transition-none motion-reduce:opacity-100',
+                  highlightVisible ? 'opacity-100' : 'opacity-0',
+                )}
+              >
+                The Tenant shall pay an interest-free refundable security deposit
+                of ₹1,68,000 before possession.
+              </p>
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }
+
+export default Landing;

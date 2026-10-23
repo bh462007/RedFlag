@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { SkipLink } from '@/components/SkipLink';
 import { ReadingOptionsProvider } from '@/components/ReadingOptionsContext';
+import { AnalysisProvider } from '@/context/AnalysisContext';
 import { ClauseView } from '@/screens/ClauseView';
 import { AtAGlance } from '@/screens/AtAGlance';
 import { Landing } from '@/screens/Landing';
@@ -23,15 +24,17 @@ export default function App() {
   return (
     <BrowserRouter>
       <ReadingOptionsProvider>
-        <SkipLink />
-        <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/processing" element={<Processing />} />
-        <Route path="/glance" element={<AtAGlance />} />
-        <Route path="/clause" element={<ClauseView />} />
-        <Route path="/plan" element={<ActionPlan />} />
-        <Route path="*" element={<Placeholder name="Landing" />} />
-        </Routes>
+        <AnalysisProvider>
+          <SkipLink />
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/processing" element={<Processing />} />
+            <Route path="/glance" element={<AtAGlance />} />
+            <Route path="/clause" element={<ClauseView />} />
+            <Route path="/plan" element={<ActionPlan />} />
+            <Route path="*" element={<Placeholder name="Landing" />} />
+          </Routes>
+        </AnalysisProvider>
       </ReadingOptionsProvider>
     </BrowserRouter>
   );

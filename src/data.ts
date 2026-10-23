@@ -202,3 +202,84 @@ export const clauses: Clause[] = [
     ],
   },
 ];
+
+
+export type RedFlagSeverity = 'severe' | 'high' | 'medium' | 'low';
+export type RedFlag = { text: string; severity: RedFlagSeverity;
+  explanation: string };
+export type AnalysisResult = {
+  trustScore: number;
+  verdict: 'safe' | 'suspicious' | 'scam';
+  redFlags: RedFlag[];
+  whyItMatters: string;
+  whatToDo: string[];
+};
+export type VerificationStep = { id: string; title: string;
+  detail: string; request: string };
+
+export const sampleMessage: string = `From: hr@techstarthiring-india.com
+Subject: Congratulations! Remote Data Analyst Internship Selected
+
+Dear Student,
+
+After reviewing your profile on LinkedIn, you have been selected for
+a paid remote internship as a Data Analyst at TechStart Solutions.
+
+Position: Remote Data Analyst Intern
+Duration: 3 months
+Stipend: 25,000 per month
+Joining: Immediate
+
+To confirm acceptance within 48 hours, complete onboarding. A
+one-time registration fee of 2,500 is required for ID card and
+training material. This amount will be refunded with your first
+salary.
+
+Click here to complete onboarding: [link]`;
+
+export const sampleAnalysis: AnalysisResult = {
+  trustScore: 18,
+  verdict: 'scam',
+  redFlags: [
+    { text: 'Registration fee', severity: 'severe',
+      explanation: 'Legitimate employers never charge onboarding fees.' },
+    { text: '48-hour deadline', severity: 'high',
+      explanation: 'Urgency is a common scam pressure tactic.' },
+    { text: 'Non-corporate email domain', severity: 'high',
+      explanation: 'techstarthiring-india.com is not the company real domain.' },
+    { text: 'Refunded with first salary', severity: 'medium',
+      explanation: 'Classic confidence trick. You never see the refund.' },
+    { text: 'Unsolicited LinkedIn offer', severity: 'medium',
+      explanation: 'Real recruiters rarely skip an interview.' }
+  ],
+  whyItMatters: 'Over 4,000 Indian students lose between 1-3 lakh rupees to fake internship scams every year. Most report too late.',
+  whatToDo: [
+    'Google the company name plus the word scam',
+    'Verify the email domain matches the company official site',
+    'Never pay any fee. Real internships are always free.',
+    'Report to cybercrime.gov.in',
+    'Warn your college placement cell',
+    'Message the company directly on LinkedIn'
+  ]
+};
+
+export const verificationSteps: VerificationStep[] = [
+  { id: 'v1', title: 'Search for scams',
+    detail: 'Google the company name plus scam and review',
+    request: 'I searched the company name plus scam and found no reports.' },
+  { id: 'v2', title: 'Verify the domain',
+    detail: 'Check the email matches the company official website',
+    request: 'Check that the email domain matches the company real domain.' },
+  { id: 'v3', title: 'Never pay a fee',
+    detail: 'Real internships never charge registration',
+    request: 'I will not pay any registration or training fee.' },
+  { id: 'v4', title: 'Report it',
+    detail: 'File a complaint at cybercrime.gov.in',
+    request: 'Report to cybercrime.gov.in if this is a scam.' },
+  { id: 'v5', title: 'Warn your peers',
+    detail: 'Tell your placement cell and friends',
+    request: 'Share this warning with my college placement cell.' },
+  { id: 'v6', title: 'Contact directly',
+    detail: 'Message the company on LinkedIn',
+    request: 'Verify the offer directly with the company on LinkedIn.' }
+];
