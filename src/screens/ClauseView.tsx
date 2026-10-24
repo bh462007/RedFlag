@@ -15,6 +15,23 @@ import {
 } from '@/data';
 import { cn } from '@/lib/utils';
 
+function getRiskTier(score: number): {
+  label: string;
+  chipText: string;
+  tone: 'danger' | 'warn' | 'safe';
+} {
+  if (score <= 20) return { label: 'Very high risk',
+                            chipText: 'VERY HIGH', tone: 'danger' };
+  if (score <= 40) return { label: 'High risk',
+                            chipText: 'HIGH', tone: 'danger' };
+  if (score <= 60) return { label: 'Moderate risk',
+                            chipText: 'MODERATE', tone: 'warn' };
+  if (score <= 80) return { label: 'Low risk',
+                            chipText: 'LOW', tone: 'safe' };
+  return { label: 'Very low risk',
+           chipText: 'VERY LOW', tone: 'safe' };
+}
+
 const HIGHLIGHT_SUBSTRINGS = [
   'hr@techstarthiring-india.com',
   'reviewing your profile on LinkedIn',
@@ -147,33 +164,14 @@ export function ClauseView() {
     setTimeout(() => setCopiedMobile(false), 2000);
   };
 
+  const riskTier = getRiskTier(result.trustScore);
+
   const scoreColorClass =
-    result.verdict === 'scam'
+    riskTier.tone === 'danger'
       ? 'text-danger'
-      : result.verdict === 'suspicious'
+      : riskTier.tone === 'warn'
       ? 'text-warn'
       : 'text-safe';
-
-  const verdictTone: ClauseTone =
-    result.verdict === 'scam'
-      ? 'danger'
-      : result.verdict === 'suspicious'
-      ? 'warn'
-      : 'safe';
-
-  const verdictLabel =
-    result.verdict === 'scam'
-      ? 'SCAM'
-      : result.verdict === 'suspicious'
-      ? 'SUSPICIOUS'
-      : 'SAFE';
-
-  const riskLabel =
-    result.verdict === 'scam'
-      ? 'High risk'
-      : result.verdict === 'suspicious'
-      ? 'Needs checking'
-      : 'Low risk';
 
   const h1Text =
     result.verdict === 'scam'
@@ -269,8 +267,8 @@ export function ClauseView() {
                 <span className="ml-1 text-2xl text-muted">/100</span>
               </div>
               <div className="flex items-center gap-3">
-                <Chip tone={verdictTone}>{verdictLabel}</Chip>
-                <span className="text-[15px] text-muted">{riskLabel}</span>
+                <Chip tone={riskTier.tone}>{riskTier.chipText}</Chip>
+                <span className="text-[15px] text-muted">{riskTier.label}</span>
               </div>
             </div>
 

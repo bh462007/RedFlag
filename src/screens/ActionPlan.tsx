@@ -3,11 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { CopyButton } from '@/components/CopyButton';
-import { verificationSteps } from '@/data';
+import { useAnalysis } from '@/context/AnalysisContext';
+import { sampleAnalysis } from '@/data';
 import { cn } from '@/lib/utils';
 
 export function ActionPlan() {
   const navigate = useNavigate();
+  const { state } = useAnalysis();
+  const result = state.result ?? sampleAnalysis;
+  const steps = result.whatToDo;
+
   const [checkedIds, setCheckedIds] = useState<string[]>([]);
   const [copiedAll, setCopiedAll] = useState(false);
 
@@ -18,11 +23,8 @@ export function ActionPlan() {
   };
 
   const allRequestsText = useMemo(
-    () =>
-      verificationSteps
-        .map((step, idx) => `${idx + 1}. ${step.request}`)
-        .join('\n\n'),
-    []
+    () => steps.map((step, idx) => `${idx + 1}. ${step}`).join('\n\n'),
+    [steps]
   );
 
   const handleCopyAll = async () => {
@@ -62,7 +64,7 @@ export function ActionPlan() {
             ACTION PLAN
           </p>
           <h1 className="mt-3 font-display text-[44px] leading-[1.1] tracking-[-0.02em] text-ink">
-            Before you respond, do these six things
+            Before you respond, do these things
           </h1>
           <p className="mt-4 max-w-[560px] text-[16px] text-muted">
             Five minutes of checking saves months of regret. Copy each step and act on it.
@@ -71,11 +73,12 @@ export function ActionPlan() {
 
         {/* STEP LIST (mt-12, flex column gap-4) */}
         <div className="mt-12 flex flex-col gap-4">
-          {verificationSteps.map((step, index) => {
-            const isChecked = checkedIds.includes(step.id);
+          {steps.map((step, index) => {
+            const stepId = `step-${index}`;
+            const isChecked = checkedIds.includes(stepId);
             return (
               <div
-                key={step.id}
+                key={stepId}
                 className={cn(
                   'rounded-lg border border-border bg-surface p-5 transition-opacity',
                   isChecked && 'opacity-60'
@@ -94,7 +97,7 @@ export function ActionPlan() {
                         {isChecked && (
                           <span className="mr-1 font-bold text-safe">✓</span>
                         )}
-                        {step.title}
+                        {step}
                       </h2>
                       {isChecked && (
                         <Chip
@@ -106,13 +109,13 @@ export function ActionPlan() {
                       )}
                     </div>
                     <p className="mt-1 text-[14px] leading-relaxed text-muted">
-                      {step.detail}
+                      Copy this and complete it before you respond.
                     </p>
                   </div>
 
                   {/* Right (desktop) / below (mobile): Copy Button */}
                   <div className="mt-2 shrink-0 self-start sm:mt-0">
-                    <CopyButton text={step.request} label="Copy request" />
+                    <CopyButton text={step} label="Copy request" />
                   </div>
                 </div>
 
@@ -122,7 +125,7 @@ export function ActionPlan() {
                     <input
                       type="checkbox"
                       checked={isChecked}
-                      onChange={() => toggleStep(step.id)}
+                      onChange={() => toggleStep(stepId)}
                       className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
                     />
                     <span>Mark as raised</span>
@@ -141,7 +144,7 @@ export function ActionPlan() {
 
           <div className="no-print mt-6 flex flex-wrap gap-3 print:hidden">
             <Button variant="primary" onClick={handleCopyAll}>
-              {copiedAll ? 'Copied ✓' : 'Copy all six requests'}
+              {copiedAll ? 'Copied ✓' : 'Copy all steps'}
             </Button>
             <Button variant="secondary" onClick={handlePrint}>
               Print

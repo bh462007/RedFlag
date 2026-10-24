@@ -8,6 +8,23 @@ import {
   type RedFlagSeverity,
 } from '@/data';
 
+function getRiskTier(score: number): {
+  label: string;
+  chipText: string;
+  tone: 'danger' | 'warn' | 'safe';
+} {
+  if (score <= 20) return { label: 'Very high risk',
+                            chipText: 'VERY HIGH', tone: 'danger' };
+  if (score <= 40) return { label: 'High risk',
+                            chipText: 'HIGH', tone: 'danger' };
+  if (score <= 60) return { label: 'Moderate risk',
+                            chipText: 'MODERATE', tone: 'warn' };
+  if (score <= 80) return { label: 'Low risk',
+                            chipText: 'LOW', tone: 'safe' };
+  return { label: 'Very low risk',
+           chipText: 'VERY LOW', tone: 'safe' };
+}
+
 const severityMap: Record<
   RedFlagSeverity,
   { tone: ClauseTone; label: string }
@@ -23,33 +40,14 @@ export function AtAGlance() {
   const { state } = useAnalysis();
   const result = state.result ?? sampleAnalysis;
 
+  const riskTier = getRiskTier(result.trustScore);
+
   const scoreColorClass =
-    result.verdict === 'scam'
+    riskTier.tone === 'danger'
       ? 'text-danger'
-      : result.verdict === 'suspicious'
+      : riskTier.tone === 'warn'
       ? 'text-warn'
       : 'text-safe';
-
-  const verdictTone: ClauseTone =
-    result.verdict === 'scam'
-      ? 'danger'
-      : result.verdict === 'suspicious'
-      ? 'warn'
-      : 'safe';
-
-  const verdictLabel =
-    result.verdict === 'scam'
-      ? 'SCAM'
-      : result.verdict === 'suspicious'
-      ? 'SUSPICIOUS'
-      : 'SAFE';
-
-  const riskLabel =
-    result.verdict === 'scam'
-      ? 'High risk'
-      : result.verdict === 'suspicious'
-      ? 'Needs checking'
-      : 'Low risk';
 
   return (
     <main
@@ -86,8 +84,8 @@ export function AtAGlance() {
               <span className="mb-3 ml-2 text-3xl text-muted">/100</span>
             </div>
             <div className="mt-4 flex items-center gap-3">
-              <Chip tone={verdictTone}>{verdictLabel}</Chip>
-              <span className="text-[15px] text-muted">{riskLabel}</span>
+              <Chip tone={riskTier.tone}>{riskTier.chipText}</Chip>
+              <span className="text-[15px] text-muted">{riskTier.label}</span>
             </div>
           </div>
 

@@ -1,35 +1,47 @@
+
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, Loader2 } from 'lucide-react';
+import { CheckCircle2, Loader2, Circle, AlertCircle } from 'lucide-react';
 import { useAnalysis } from '@/context/AnalysisContext';
 import { cn } from '@/lib/utils';
+
+const stages = [
+  'Preparing your message',
+  'Analyzing risk indicators',
+  'Preparing your report',
+];
 
 export function Processing() {
   const { state, setResult } = useAnalysis();
   const navigate = useNavigate();
-  const [started, setStarted] = useState(false);
-  const [prefersReduced, setPrefersReduced] = useState(false);
 
-  useEffect(() => {
-    const isReduced =
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const [progress, setProgress] = useState(5);
+  const [error, setError] = useState('');
 
-    if (isReduced) {
-      setPrefersReduced(true);
-    } else {
-      const raf = requestAnimationFrame(() => {
-        setStarted(true);
-      });
-      return () => cancelAnimationFrame(raf);
-    }
-  }, []);
+  const currentStage =
+    progress < 25 ? 0 : progress < 65 ? 1 : 2;
 
   useEffect(() => {
     let cancelled = false;
+    let navigationTimer: ReturnType<typeof setTimeout> | undefined;
+
+    // This is visual progress, not a measurement of the model's
+    // internal reasoning. It stops at 90% until the API responds.
+    const progressTimer = setInterval(() => {
+      setProgress((previous) => {
+        if (previous >= 90) return 90;
+
+        return Math.min(
+          previous + Math.max(1, (90 - previous) * 0.06),
+          90
+        );
+      });
+    }, 350);
 
     async function analyze() {
       try {
+        setError('');
+
         const res = await fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -37,29 +49,59 @@ export function Processing() {
         });
 
         if (!res.ok) {
-          throw new Error(`API returned ${res.status}`);
+          const data = await res.json().catch(() => ({}));
+
+          if (res.status === 429) {
+            throw new Error(
+              `AI service is temporarily busy. Please wait ${data.retryAfterSeconds ?? 10} seconds, then try again.`
+            );
+          }
+
+          throw new Error(
+            data.error || `Analysis request failed (${res.status})`
+          );
         }
 
         const data = await res.json();
 
         if (cancelled) return;
 
+        clearInterval(progressTimer);
+        setProgress(100);
         setResult(data);
-        navigate('/clause');
+
+        // Briefly show completion before opening the report.
+        navigationTimer = setTimeout(() => {
+          if (!cancelled) navigate('/clause');
+        }, 350);
       } catch (err) {
         if (cancelled) return;
+
+        clearInterval(progressTimer);
         console.error('Analysis failed:', err);
-        // On failure, still navigate to /clause — the screen will
-        // fall back to sampleAnalysis via its existing fallback.
-        navigate('/clause');
+
+        setError(
+          err instanceof Error
+            ? `Analysis failed: ${err.message}`
+            : 'Analysis failed due to an unknown error.'
+        );
       }
     }
 
-    // Delay 800ms so the user sees the processing screen briefly
-    const timer = setTimeout(analyze, 800);
+    if (!state.text?.trim()) {
+      setError('No message was provided for analysis.');
+      clearInterval(progressTimer);
+    } else {
+      analyze();
+    }
+
     return () => {
       cancelled = true;
-      clearTimeout(timer);
+      clearInterval(progressTimer);
+
+      if (navigationTimer) {
+        clearTimeout(navigationTimer);
+      }
     };
   }, [state.text, setResult, navigate]);
 
@@ -69,59 +111,99 @@ export function Processing() {
       className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-paper px-6"
     >
       <div className="w-full max-w-[480px]">
-        {/* HEADER */}
         <h2 className="font-display text-[36px] leading-[1.1] tracking-[-0.02em] text-ink">
-          Reading the message…
+          {error
+            ? 'Analysis interrupted'
+            : progress === 100
+              ? 'Analysis complete'
+              : 'Analyzing your message…'}
         </h2>
 
-        {/* CHECKLIST */}
-        <ul className="mt-8 flex flex-col gap-4 text-left">
-          <li className="flex items-center gap-3 text-[16px] text-ink">
-            <CheckCircle2
-              className="h-5 w-5 shrink-0 text-safe"
-              aria-hidden="true"
-            />
-            <span>Found 5 signal patterns</span>
-          </li>
-          <li className="flex items-center gap-3 text-[16px] text-ink">
-            <CheckCircle2
-              className="h-5 w-5 shrink-0 text-safe"
-              aria-hidden="true"
-            />
-            <span>Cross-checking against known scam formats</span>
-          </li>
-          <li className="flex items-center gap-3 text-[16px] text-ink">
-            <Loader2
-              className="h-5 w-5 shrink-0 animate-spin text-primary"
-              aria-hidden="true"
-            />
-            <span>Generating your trust score</span>
-          </li>
+        <p className="mt-3 text-[14px] text-muted">
+          {error
+            ? 'Your report is not ready yet.'
+            : progress === 100
+              ? 'Your results are ready.'
+              : 'Checking the submitted text for potential warning signs.'}
+        </p>
+
+        <ul className="mt-8 flex flex-col gap-5 text-left">
+          {stages.map((stage, index) => {
+            const complete =
+              progress === 100 || index < currentStage;
+            const active =
+              progress < 100 && index === currentStage;
+
+            return (
+              <li
+                key={stage}
+                className={cn(
+                  'flex items-center gap-3 text-[16px]',
+                  complete || active ? 'text-ink' : 'text-muted'
+                )}
+              >
+                {complete ? (
+                  <CheckCircle2
+                    className="h-5 w-5 shrink-0 text-safe"
+                    aria-hidden="true"
+                  />
+                ) : active ? (
+                  <Loader2
+                    className="h-5 w-5 shrink-0 animate-spin text-primary"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <Circle
+                    className="h-5 w-5 shrink-0"
+                    aria-hidden="true"
+                  />
+                )}
+
+                <span>{stage}</span>
+              </li>
+            );
+          })}
         </ul>
 
-        {/* PROGRESS BAR */}
         <div
           className="mt-8 h-2 w-full overflow-hidden rounded-full bg-border"
           role="progressbar"
           aria-label="Analysis progress"
           aria-valuemin={0}
           aria-valuemax={100}
+          aria-valuenow={Math.round(progress)}
         >
           <div
-            className={cn(
-              'h-full rounded-full bg-primary',
-              prefersReduced
-                ? 'w-full'
-                : 'transition-[width] duration-[2000ms] ease-out motion-reduce:transition-none motion-reduce:w-full',
-              prefersReduced || started ? 'w-full' : 'w-0'
-            )}
+            className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out motion-reduce:transition-none"
+            style={{ width: `${progress}%` }}
           />
         </div>
 
-        {/* BELOW */}
-        <p className="mt-6 text-[14px] text-muted">
-          About 20 seconds. You can close this tab and come back.
-        </p>
+        {error ? (
+          <div className="mt-6">
+            <p className="flex items-start gap-2 text-[14px] text-muted">
+              <AlertCircle
+                className="mt-0.5 h-4 w-4 shrink-0"
+                aria-hidden="true"
+              />
+              {error}
+            </p>
+
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="mt-4 rounded-md bg-primary px-5 py-3 text-sm text-white"
+            >
+              Try again
+            </button>
+          </div>
+        ) : (
+          <p className="mt-6 text-[14px] text-muted">
+            {progress === 100
+              ? 'Opening your report…'
+              : 'Analysis can take a few seconds. Please keep this page open.'}
+          </p>
+        )}
       </div>
     </main>
   );
