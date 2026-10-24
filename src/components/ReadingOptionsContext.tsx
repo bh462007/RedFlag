@@ -6,9 +6,14 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import {
+  translate,
+  type TranslationKey,
+  type TranslationParams,
+} from '@/lib/i18n';
 
 export type FontSize = 'small' | 'medium' | 'large';
-export type Language = 'en' | 'hi';
+export type Language = 'en';
 
 export interface ReadingOptions {
   fontSize: FontSize;
@@ -20,6 +25,7 @@ export interface ReadingOptionsContextValue extends ReadingOptions {
   setFontSize: (size: FontSize) => void;
   setHighContrast: (on: boolean) => void;
   setLanguage: (lang: Language) => void;
+  t: (key: TranslationKey, params?: TranslationParams) => string;
   reset: () => void;
 }
 
@@ -48,9 +54,17 @@ function loadInitial(): ReadingOptions {
     if (!raw) return defaults;
     const parsed = JSON.parse(raw) as Partial<ReadingOptions>;
     return {
-      fontSize: parsed.fontSize ?? defaults.fontSize,
-      highContrast: parsed.highContrast ?? defaults.highContrast,
-      language: parsed.language ?? defaults.language,
+      fontSize:
+        parsed.fontSize === 'small' ||
+        parsed.fontSize === 'medium' ||
+        parsed.fontSize === 'large'
+          ? parsed.fontSize
+          : defaults.fontSize,
+      highContrast:
+        typeof parsed.highContrast === 'boolean'
+          ? parsed.highContrast
+          : defaults.highContrast,
+      language: defaults.language,
     };
   } catch {
     return defaults;
@@ -65,7 +79,6 @@ export function ReadingOptionsProvider({ children }: { children: ReactNode }) {
     root.style.fontSize = fontSizePercent[options.fontSize];
     root.classList.toggle('hc', options.highContrast);
     document.body.classList.toggle('high-contrast', options.highContrast);
-    root.classList.toggle('lang-hi', options.language === 'hi');
   }, [options]);
 
   useEffect(() => {
@@ -83,6 +96,7 @@ export function ReadingOptionsProvider({ children }: { children: ReactNode }) {
       setHighContrast: (highContrast) =>
         setOptions((o) => ({ ...o, highContrast })),
       setLanguage: (language) => setOptions((o) => ({ ...o, language })),
+      t: (key, params) => translate(options.language, key, params),
       reset: () => setOptions(defaults),
     }),
     [options],

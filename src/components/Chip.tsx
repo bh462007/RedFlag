@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { AlertTriangle, CheckCircle2, AlertOctagon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ClauseTone } from '@/data';
+import { useReadingOptions } from '@/components/ReadingOptionsContext';
 
 export interface ChipProps {
   tone: ClauseTone;
@@ -36,6 +37,7 @@ const toneConfig: Record<
 
 export function Chip({ tone, children, className, icon }: ChipProps) {
   const cfg = toneConfig[tone];
+  const { t } = useReadingOptions();
   return (
     <span
       className={cn(
@@ -47,7 +49,10 @@ export function Chip({ tone, children, className, icon }: ChipProps) {
       )}
     >
       {icon ?? cfg.icon}
-      <span>{children ?? cfg.label}</span>
+      <span>
+        {children ??
+          t(tone === 'danger' ? 'risky' : tone === 'warn' ? 'watch' : 'fair')}
+      </span>
     </span>
   );
 }

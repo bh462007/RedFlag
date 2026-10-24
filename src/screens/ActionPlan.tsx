@@ -5,11 +5,13 @@ import { Chip } from '@/components/Chip';
 import { CopyButton } from '@/components/CopyButton';
 import { AnalysisError } from '@/components/AnalysisError';
 import { useAnalysis } from '@/context/AnalysisContext';
+import { useReadingOptions } from '@/components/ReadingOptionsContext';
 import { cn } from '@/lib/utils';
 
 export function ActionPlan() {
   const navigate = useNavigate();
   const { state } = useAnalysis();
+  const { t } = useReadingOptions();
   const result = state.result;
   const steps = result?.whatToDo ?? [];
 
@@ -30,7 +32,7 @@ export function ActionPlan() {
   if (!result) {
     return (
       <AnalysisError
-        message={state.error ?? 'Submit a message before opening the action plan.'}
+        message={state.error ?? t('submitBeforePlan')}
       />
     );
   }
@@ -69,13 +71,13 @@ export function ActionPlan() {
         {/* HEADER */}
         <header>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-            ACTION PLAN
+            {t('actionPlan')}
           </p>
           <h1 className="mt-3 font-display text-[44px] leading-[1.1] tracking-[-0.02em] text-ink">
-            Before you respond, do these things
+            {t('actionPlanTitle')}
           </h1>
           <p className="mt-4 max-w-[560px] text-[16px] text-muted">
-            Five minutes of checking saves months of regret. Copy each step and act on it.
+            {t('actionPlanDescription')}
           </p>
         </header>
 
@@ -112,18 +114,18 @@ export function ActionPlan() {
                           tone="safe"
                           className="h-5 px-2 text-[10px] font-semibold"
                         >
-                          RAISED
+                          {t('raised')}
                         </Chip>
                       )}
                     </div>
                     <p className="mt-1 text-[14px] leading-relaxed text-muted">
-                      Copy this and complete it before you respond.
+                      {t('copyBeforeRespond')}
                     </p>
                   </div>
 
                   {/* Right (desktop) / below (mobile): Copy Button */}
                   <div className="mt-2 shrink-0 self-start sm:mt-0">
-                    <CopyButton text={step} label="Copy request" />
+                    <CopyButton text={step} label={t('copyRequest')} />
                   </div>
                 </div>
 
@@ -136,7 +138,7 @@ export function ActionPlan() {
                       onChange={() => toggleStep(stepId)}
                       className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
                     />
-                    <span>Mark as raised</span>
+                    <span>{t('markRaised')}</span>
                   </label>
                 </div>
               </div>
@@ -147,18 +149,18 @@ export function ActionPlan() {
         {/* FOOTER */}
         <footer className="mt-8">
           <p className="text-[15px] text-muted">
-            Send this list to someone you trust before you respond.
+            {t('sendTrustedPerson')}
           </p>
 
           <div className="no-print mt-6 flex flex-wrap gap-3 print:hidden">
             <Button variant="primary" onClick={handleCopyAll}>
-              {copiedAll ? 'Copied ✓' : 'Copy all steps'}
+              {copiedAll ? t('copied') : t('copyAllSteps')}
             </Button>
             <Button variant="secondary" onClick={handlePrint}>
-              Print
+              {t('print')}
             </Button>
             <Button variant="ghost" onClick={() => navigate('/clause')}>
-              ← Back to analysis
+              {t('backToAnalysis')}
             </Button>
           </div>
         </footer>

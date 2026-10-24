@@ -7,15 +7,18 @@ import { AtAGlance } from '@/screens/AtAGlance';
 import { Landing } from '@/screens/Landing';
 import { Processing } from '@/screens/Processing';
 import { ActionPlan } from '@/screens/ActionPlan';
+import { useReadingOptions } from '@/components/ReadingOptionsContext';
 
-function Placeholder({ name }: { name: string }) {
+function Placeholder() {
+  const { t } = useReadingOptions();
+
   return (
     <main
       id="main"
       className="mx-auto flex min-h-[60vh] max-w-3xl flex-col items-center justify-center gap-2 px-6 py-16 text-center"
     >
-      <h1 className="text-2xl font-semibold text-ink">{name}</h1>
-      <p className="text-sm text-muted">This screen is not built yet.</p>
+      <h1 className="text-2xl font-semibold text-ink">{t('notFound')}</h1>
+      <p className="text-sm text-muted">{t('notFoundDescription')}</p>
     </main>
   );
 }
@@ -32,7 +35,7 @@ export default function App() {
             <Route path="/glance" element={<AtAGlance />} />
             <Route path="/clause" element={<ClauseView />} />
             <Route path="/plan" element={<ActionPlan />} />
-            <Route path="*" element={<Placeholder name="Landing" />} />
+            <Route path="*" element={<Placeholder />} />
           </Routes>
         </AnalysisProvider>
       </ReadingOptionsProvider>

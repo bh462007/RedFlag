@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import { Button } from '@/components/Button';
@@ -8,8 +8,8 @@ import { CopyButton } from '@/components/CopyButton';
 import { AnalysisError } from '@/components/AnalysisError';
 import { ReadingOptionsDialog } from '@/components/ReadingOptionsDialog';
 import { useAnalysis } from '@/context/AnalysisContext';
+import { useReadingOptions } from '@/components/ReadingOptionsContext';
 import {
-  sampleMessage,
   type ClauseTone,
   type RedFlagSeverity,
 } from '@/data';
@@ -32,82 +32,24 @@ function getRiskTier(score: number): {
            chipText: 'VERY LOW', tone: 'safe' };
 }
 
-const HIGHLIGHT_SUBSTRINGS = [
-  'hr@techstarthiring-india.com',
-  'reviewing your profile on LinkedIn',
-  'within 48 hours',
-  'registration fee of 2,500',
-  'refunded with your first salary',
-];
-
 const severityMap: Record<
   RedFlagSeverity,
-  { tone: ClauseTone; label: string }
+  { tone: ClauseTone }
 > = {
-  severe: { tone: 'danger', label: 'SEVERE' },
-  high: { tone: 'danger', label: 'HIGH' },
-  medium: { tone: 'warn', label: 'MEDIUM' },
-  low: { tone: 'safe', label: 'LOW' },
+  severe: { tone: 'danger' },
+  high: { tone: 'danger' },
+  medium: { tone: 'warn' },
+  low: { tone: 'safe' },
 };
 
 function HighlightedMessage({
   text,
-  visible,
 }: {
   text: string;
-  visible: boolean;
 }) {
-  const elements = useMemo(() => {
-    type Match = { start: number; end: number };
-    const matches: Match[] = [];
-
-    for (const sub of HIGHLIGHT_SUBSTRINGS) {
-      let pos = 0;
-      while ((pos = text.indexOf(sub, pos)) !== -1) {
-        matches.push({ start: pos, end: pos + sub.length });
-        pos += sub.length;
-      }
-    }
-
-    if (matches.length === 0) {
-      return [text];
-    }
-
-    matches.sort((a, b) => a.start - b.start);
-
-    const nodes: (string | JSX.Element)[] = [];
-    let lastIndex = 0;
-
-    matches.forEach((m, idx) => {
-      if (m.start >= lastIndex) {
-        if (m.start > lastIndex) {
-          nodes.push(text.slice(lastIndex, m.start));
-        }
-        nodes.push(
-          <mark
-            key={`highlight-${idx}`}
-            className={cn(
-              'rounded-[2px] bg-highlight px-0.5 py-0.5 text-ink transition-opacity duration-200 motion-reduce:transition-none motion-reduce:opacity-100',
-              visible ? 'opacity-100' : 'opacity-0',
-            )}
-          >
-            {text.slice(m.start, m.end)}
-          </mark>
-        );
-        lastIndex = m.end;
-      }
-    });
-
-    if (lastIndex < text.length) {
-      nodes.push(text.slice(lastIndex));
-    }
-
-    return nodes;
-  }, [text, visible]);
-
   return (
     <pre className="font-document whitespace-pre-wrap text-[15px] leading-[26px] text-ink">
-      {elements}
+      {text}
     </pre>
   );
 }
@@ -115,28 +57,12 @@ function HighlightedMessage({
 export function ClauseView() {
   const navigate = useNavigate();
   const { state } = useAnalysis();
+  const { t } = useReadingOptions();
   const result = state.result;
-  const messageText = state.text || sampleMessage;
+  const messageText = state.text;
 
   const [messageExpanded, setMessageExpanded] = useState(false);
-  const [highlightsVisible, setHighlightsVisible] = useState(false);
   const [copiedMobile, setCopiedMobile] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-      if (mediaQuery.matches) {
-        setHighlightsVisible(true);
-        return;
-      }
-      const raf = requestAnimationFrame(() => {
-        setHighlightsVisible(true);
-      });
-      return () => cancelAnimationFrame(raf);
-    } else {
-      setHighlightsVisible(true);
-    }
-  }, []);
 
   const stepsText = useMemo(
     () =>
@@ -147,7 +73,7 @@ export function ClauseView() {
   if (!result) {
     return (
       <AnalysisError
-        message={state.error ?? 'Submit a message before opening the report.'}
+        message={state.error ?? t('submitBeforeReport')}
       />
     );
   }
@@ -184,10 +110,10 @@ export function ClauseView() {
 
   const h1Text =
     result.verdict === 'scam'
-      ? 'This internship offer is very likely a scam'
+      ? t('scamHeading')
       : result.verdict === 'suspicious'
-      ? 'This offer shows some suspicious signals'
-      : 'This offer looks legitimate';
+      ? t('suspiciousHeading')
+      : t('legitimateHeading');
 
   return (
     <div className="flex min-h-screen flex-col bg-paper">
@@ -218,7 +144,7 @@ export function ClauseView() {
             aria-controls="mobile-message-card"
             className="flex w-full items-center justify-between border-y border-border bg-surface p-4 text-[15px] font-medium text-ink md:hidden"
           >
-            <span>Show original message</span>
+            <span>{t('showOriginal')}</span>
             <ChevronDown
               className={cn(
                 'h-4 w-4 text-muted transition-transform duration-200',
@@ -234,7 +160,6 @@ export function ClauseView() {
               <div className="rounded-lg border border-border bg-surface p-6 shadow-sm">
                 <HighlightedMessage
                   text={messageText}
-                  visible={highlightsVisible}
                 />
               </div>
             </div>
@@ -243,12 +168,11 @@ export function ClauseView() {
           {/* Desktop message content */}
           <div className="hidden p-8 md:block">
             <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-muted">
-              Your message
+              {t('yourMessage')}
             </p>
             <div className="rounded-lg border border-border bg-surface p-6 shadow-sm">
               <HighlightedMessage
                 text={messageText}
-                visible={highlightsVisible}
               />
             </div>
           </div>
@@ -258,8 +182,8 @@ export function ClauseView() {
         <div className="w-full p-6 md:h-full md:w-[55%] md:overflow-y-auto md:p-12">
           <div className="mx-auto flex w-full max-w-[640px] flex-col md:mx-0">
             {/* Breadcrumb */}
-            <nav aria-label="Breadcrumb" className="mb-6 text-sm text-muted">
-              Analysis
+            <nav aria-label={t('analysis')} className="mb-6 text-sm text-muted">
+              {t('analysis')}
             </nav>
 
             {/* TRUST SCORE BLOCK */}
@@ -276,8 +200,8 @@ export function ClauseView() {
                 <span className="ml-1 text-2xl text-muted">/100</span>
               </div>
               <div className="flex items-center gap-3">
-                <Chip tone={riskTier.tone}>{riskTier.chipText}</Chip>
-                <span className="text-[15px] text-muted">{riskTier.label}</span>
+                <Chip tone={riskTier.tone}>{t(riskTier.chipText === 'VERY HIGH' ? 'veryHigh' : riskTier.chipText === 'HIGH' ? 'high' : riskTier.chipText === 'MODERATE' ? 'moderate' : riskTier.chipText === 'LOW' ? 'low' : 'veryLow')}</Chip>
+                <span className="text-[15px] text-muted">{t(riskTier.label === 'Very high risk' ? 'veryHighRisk' : riskTier.label === 'High risk' ? 'highRisk' : riskTier.label === 'Moderate risk' ? 'moderateRisk' : riskTier.label === 'Low risk' ? 'lowRisk' : 'veryLowRisk')}</span>
               </div>
             </div>
 
@@ -289,10 +213,10 @@ export function ClauseView() {
             {/* THREE SECTIONS */}
             <div className="flex flex-col gap-10">
               {/* Section 1: Red flags */}
-              <ClauseSection label="Red flags">
+              <ClauseSection label={t('redFlags')}>
                 {result.redFlags.length === 0 ? (
                   <p className="py-4 text-[15px] text-muted">
-                    No scam signals detected.
+                    {t('noScamSignals')}
                   </p>
                 ) : (
                   <ul className="flex flex-col">
@@ -309,7 +233,15 @@ export function ClauseView() {
                               tone={sev.tone}
                               className="h-6 px-2.5 text-[11px] font-semibold"
                             >
-                              {sev.label}
+                              {t(
+                                flag.severity === 'severe'
+                                  ? 'veryHigh'
+                                  : flag.severity === 'high'
+                                    ? 'high'
+                                    : flag.severity === 'medium'
+                                      ? 'moderate'
+                                      : 'low',
+                              )}
                             </Chip>
                             <span className="text-[17px] font-semibold text-ink">
                               {flag.text}
@@ -326,17 +258,17 @@ export function ClauseView() {
               </ClauseSection>
 
               {/* Section 2: Why it matters */}
-              <ClauseSection label="Why it matters">
+              <ClauseSection label={t('whyItMatters')}>
                 <p className="text-[17px] leading-[1.7] text-ink">
                   {result.whyItMatters}
                 </p>
               </ClauseSection>
 
               {/* Section 3: What to do */}
-              <ClauseSection label="What to do">
+              <ClauseSection label={t('whatToDo')}>
                 <div className="rounded-lg border border-border bg-[#FBF7EE] p-6">
                   <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
-                    ACTION PLAN
+                    {t('actionPlan')}
                   </p>
                   <ol className="flex flex-col">
                     {result.whatToDo.map((step, idx) => (
@@ -354,7 +286,7 @@ export function ClauseView() {
                     ))}
                   </ol>
                   <div className="mt-4 flex justify-end">
-                    <CopyButton text={stepsText} label="Copy all steps" />
+                    <CopyButton text={stepsText} label={t('copyAllSteps')} />
                   </div>
                 </div>
               </ClauseSection>
@@ -363,12 +295,13 @@ export function ClauseView() {
             {/* Desktop Footer Row */}
             <div className="mt-12 hidden w-full items-center justify-between md:flex">
               <Button variant="ghost" onClick={() => navigate('/')}>
-                ← New check
+                {t('newCheck')}
               </Button>
               <Button variant="primary" onClick={() => navigate('/plan')}>
-                See action plan →
+                {t('seeActionPlan')}
               </Button>
             </div>
+            <p className="mt-8 text-[13px] text-muted">{t('aiLanguageNote')}</p>
           </div>
         </div>
       </main>
@@ -378,16 +311,16 @@ export function ClauseView() {
         <Button
           variant="ghost"
           onClick={handleCopyMobileSteps}
-          aria-label="Copy all steps"
+          aria-label={t('copyAllSteps')}
         >
-          {copiedMobile ? 'Copied ✓' : 'Copy steps'}
+          {copiedMobile ? t('copied') : t('copySteps')}
         </Button>
         <Button
           variant="primary"
           onClick={() => navigate('/plan')}
-          aria-label="See action plan"
+          aria-label={t('seeActionPlan')}
         >
-          See plan →
+          {t('seePlan')}
         </Button>
       </div>
     </div>

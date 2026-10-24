@@ -3,6 +3,7 @@ import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { AnalysisError } from '@/components/AnalysisError';
 import { useAnalysis } from '@/context/AnalysisContext';
+import { useReadingOptions } from '@/components/ReadingOptionsContext';
 import {
   type ClauseTone,
   type RedFlagSeverity,
@@ -38,16 +39,44 @@ const severityMap: Record<
 export function AtAGlance() {
   const navigate = useNavigate();
   const { state } = useAnalysis();
+  const { t } = useReadingOptions();
   if (!state.result) {
     return (
       <AnalysisError
-        message={state.error ?? 'Submit a message before opening the report.'}
+        message={state.error ?? t('submitBeforeReport')}
       />
     );
   }
   const result = state.result;
+  const redFlagCount = result.redFlags.length;
+  const severeFlagCount = result.redFlags.filter(
+    (flag) => flag.severity === 'severe',
+  ).length;
+  const highFlagCount = result.redFlags.filter(
+    (flag) => flag.severity === 'high',
+  ).length;
 
   const riskTier = getRiskTier(result.trustScore);
+  const riskLabel =
+    riskTier.label === 'Very high risk'
+      ? t('veryHighRisk')
+      : riskTier.label === 'High risk'
+        ? t('highRisk')
+        : riskTier.label === 'Moderate risk'
+          ? t('moderateRisk')
+          : riskTier.label === 'Low risk'
+            ? t('lowRisk')
+            : t('veryLowRisk');
+  const riskChip =
+    riskTier.chipText === 'VERY HIGH'
+      ? t('veryHigh')
+      : riskTier.chipText === 'HIGH'
+        ? t('high')
+        : riskTier.chipText === 'MODERATE'
+          ? t('moderate')
+          : riskTier.chipText === 'LOW'
+            ? t('low')
+            : t('veryLow');
 
   const scoreColorClass =
     riskTier.tone === 'danger'
@@ -65,13 +94,30 @@ export function AtAGlance() {
         {/* HEADER BLOCK (centered, margin-bottom 48px) */}
         <header className="mb-12 text-center">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-            TRUST REPORT
+            {t('trustReport')}
           </p>
           <h1 className="mt-3 font-display text-[48px] leading-[1.05] tracking-[-0.02em] text-ink">
-            Your trust report card
+            {t('trustReportTitle')}
           </h1>
           <p className="mt-4 text-[16px] text-muted">
-            Six signals scanned across this message. Two are severe and one needs watching.
+            {redFlagCount === 0
+              ? t('noWarningSignals')
+              : t('warningSignalCount', {
+                  count: redFlagCount,
+                  countLabel: t(redFlagCount === 1 ? 'oneSignal' : 'manySignals'),
+                })}
+            {severeFlagCount > 0 &&
+              ` ${t('severeCount', {
+                count: severeFlagCount,
+                countLabel: t(severeFlagCount === 1 ? 'oneIs' : 'manyAre'),
+                countVerb: t(severeFlagCount === 1 ? 'oneIs' : 'manyAre'),
+              })}`}
+            {highFlagCount > 0 &&
+              ` ${t('highPriorityCount', {
+                count: highFlagCount,
+                countLabel: t(highFlagCount === 1 ? 'oneIs' : 'manyAre'),
+                countVerb: t(highFlagCount === 1 ? 'oneIs' : 'manyAre'),
+              })}`}
           </p>
         </header>
 
@@ -80,7 +126,7 @@ export function AtAGlance() {
           {/* Left side */}
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-              TRUST SCORE
+              {t('trustScore')}
             </p>
             <div className="mt-3 flex items-baseline">
               <span
@@ -91,8 +137,8 @@ export function AtAGlance() {
               <span className="mb-3 ml-2 text-3xl text-muted">/100</span>
             </div>
             <div className="mt-4 flex items-center gap-3">
-              <Chip tone={riskTier.tone}>{riskTier.chipText}</Chip>
-              <span className="text-[15px] text-muted">{riskTier.label}</span>
+              <Chip tone={riskTier.tone}>{riskChip}</Chip>
+              <span className="text-[15px] text-muted">{riskLabel}</span>
             </div>
           </div>
 
@@ -100,10 +146,10 @@ export function AtAGlance() {
           {result.trustScore < 50 && (
             <div className="max-w-[280px] text-left md:text-right">
               <p className="text-[14px] leading-relaxed text-muted">
-                You should not respond to this message.
+                {t('doNotRespond')}
               </p>
               <p className="text-[14px] leading-relaxed text-muted">
-                Report it to cybercrime.gov.in.
+                {t('reportCybercrime')}
               </p>
               <div className="mt-4">
                 <Button
@@ -111,7 +157,7 @@ export function AtAGlance() {
                   onClick={() => navigate('/clause')}
                   className="px-0 md:px-4"
                 >
-                  View full analysis →
+                  {t('viewFullAnalysis')}
                 </Button>
               </div>
             </div>
@@ -119,16 +165,16 @@ export function AtAGlance() {
         </div>
 
         {/* SIGNAL GRID (mb-12) */}
-        <section aria-label="Signals detected" className="mb-12">
+        <section aria-label={t('signalsDetected')} className="mb-12">
           <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-muted">
-            SIGNALS DETECTED
+            {t('signalsDetected')}
           </p>
           {result.redFlags.length === 0 ? (
             <div className="rounded-lg border border-border bg-surface p-5">
               <div className="flex items-center gap-3">
-                <Chip tone="safe">SAFE</Chip>
+                <Chip tone="safe">{t('safe')}</Chip>
                 <span className="text-[17px] font-semibold text-ink">
-                  No signals detected
+                  {t('noSignalsDetected')}
                 </span>
               </div>
             </div>
@@ -148,7 +194,15 @@ export function AtAGlance() {
                         tone={sev.tone}
                         className="h-6 px-2.5 text-[11px] font-semibold"
                       >
-                        {sev.label}
+                        {t(
+                          flag.severity === 'severe'
+                            ? 'veryHigh'
+                            : flag.severity === 'high'
+                              ? 'high'
+                              : flag.severity === 'medium'
+                                ? 'moderate'
+                                : 'low',
+                        )}
                       </Chip>
                     </div>
                     <p className="mt-3 text-[17px] font-semibold text-ink">
@@ -168,20 +222,28 @@ export function AtAGlance() {
         <div className="mb-8 flex flex-col items-start justify-between gap-4 rounded-lg border border-border bg-surface p-6 sm:flex-row sm:items-center">
           <div>
             <p className="text-[17px] font-semibold text-ink">
-              Raise these 6 flags before you respond.
+              {redFlagCount === 0
+                ? t('reviewMessage')
+                : t('reviewFlags', {
+                    count: redFlagCount,
+                    countLabel: t(redFlagCount === 1 ? 'oneFlag' : 'manyFlags'),
+                  })}
             </p>
             <p className="mt-1 text-[14px] text-muted">
-              Each one is a message you can send.
+              {t('eachMessage')}
             </p>
           </div>
           <Button variant="primary" onClick={() => navigate('/plan')}>
-            Open action plan →
+            {t('openActionPlan')}
           </Button>
         </div>
 
         {/* BOTTOM MUTED LINE */}
         <p className="mt-12 text-center text-[13px] text-muted">
-          Sample analysis. AI-generated. Not a substitute for professional advice.
+          {t('sampleAnalysisNote')}
+        </p>
+        <p className="mt-2 text-center text-[13px] text-muted">
+          {t('aiLanguageNote')}
         </p>
       </div>
     </main>

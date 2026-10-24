@@ -3,12 +3,14 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, Loader2, Circle, AlertCircle } from 'lucide-react';
 import { useAnalysis } from '@/context/AnalysisContext';
+import { useReadingOptions } from '@/components/ReadingOptionsContext';
+import type { TranslationKey } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
-const stages = [
-  'Preparing your message',
-  'Analyzing risk indicators',
-  'Preparing your report',
+const stageKeys: TranslationKey[] = [
+  'preparingMessage',
+  'analyzingRisk',
+  'preparingReport',
 ];
 const ANALYSIS_TIMEOUT_MS = 30_000;
 
@@ -19,6 +21,7 @@ export function Processing() {
     setError: setAnalysisError,
     reset,
   } = useAnalysis();
+  const { t } = useReadingOptions();
   const navigate = useNavigate();
 
   const [progress, setProgress] = useState(5);
@@ -74,12 +77,12 @@ export function Processing() {
 
           if (res.status === 429) {
             throw new Error(
-              `AI service is temporarily busy. Please wait ${data.retryAfterSeconds ?? 10} seconds, then try again.`
+              t('busyService', { seconds: data.retryAfterSeconds ?? 10 })
             );
           }
 
           throw new Error(
-            data.error || `Analysis request failed (${res.status})`
+            data.error ||             t('requestFailed', { status: res.status })
           );
         }
 
@@ -106,10 +109,10 @@ export function Processing() {
 
         const message =
           err instanceof DOMException && err.name === 'AbortError'
-            ? 'The analysis took longer than 30 seconds. Please try again.'
+            ? t('analysisTimeout')
             : err instanceof Error
               ? err.message
-              : 'Unable to complete analysis.';
+              : t('unableToComplete');
 
         console.error('Analysis request failed', {
           category:
@@ -119,7 +122,7 @@ export function Processing() {
           durationMs: Date.now() - startedAt,
         });
         setError(
-          `Analysis failed: ${message}`,
+          t('analysisFailed', { message }),
         );
         setAnalysisError(message);
       } finally {
@@ -128,7 +131,7 @@ export function Processing() {
     }
 
     if (!state.text?.trim()) {
-      setError('No message was provided for analysis.');
+      setError(t('noMessage'));
       clearInterval(progressTimer);
     } else {
       analyze();
@@ -143,7 +146,7 @@ export function Processing() {
         clearTimeout(navigationTimer);
       }
     };
-  }, [state.text, setResult, setAnalysisError, navigate, attempt]);
+  }, [state.text, setResult, setAnalysisError, navigate, attempt, t]);
 
   return (
     <main
@@ -153,22 +156,22 @@ export function Processing() {
       <div className="w-full max-w-[480px]">
         <h2 className="font-display text-[36px] leading-[1.1] tracking-[-0.02em] text-ink">
           {error
-            ? 'Analysis interrupted'
+            ? t('analysisInterrupted')
             : progress === 100
-              ? 'Analysis complete'
-              : 'Analyzing your message…'}
+              ? t('analysisComplete')
+              : t('analyzingMessage')}
         </h2>
 
         <p className="mt-3 text-[14px] text-muted">
           {error
-            ? 'Your report is not ready yet.'
+            ? t('reportNotReady')
             : progress === 100
-              ? 'Your results are ready.'
-              : 'Checking the submitted text for potential warning signs.'}
+              ? t('resultsReady')
+              : t('checkingText')}
         </p>
 
         <ul className="mt-8 flex flex-col gap-5 text-left">
-          {stages.map((stage, index) => {
+          {stageKeys.map((stageKey, index) => {
             const complete =
               progress === 100 || index < currentStage;
             const active =
@@ -176,7 +179,7 @@ export function Processing() {
 
             return (
               <li
-                key={stage}
+                key={stageKey}
                 className={cn(
                   'flex items-center gap-3 text-[16px]',
                   complete || active ? 'text-ink' : 'text-muted'
@@ -199,7 +202,7 @@ export function Processing() {
                   />
                 )}
 
-                <span>{stage}</span>
+                <span>{t(stageKey)}</span>
               </li>
             );
           })}
@@ -208,7 +211,7 @@ export function Processing() {
         <div
           className="mt-8 h-2 w-full overflow-hidden rounded-full bg-border"
           role="progressbar"
-          aria-label="Analysis progress"
+          aria-label={t('analysis')}
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(progress)}
@@ -244,14 +247,14 @@ export function Processing() {
               }}
               className="mt-4 rounded-md bg-primary px-5 py-3 text-sm text-white"
             >
-              Try again
+              {t('tryAgain')}
             </button>
           </div>
         ) : (
           <p className="mt-6 text-[14px] text-muted">
             {progress === 100
-              ? 'Opening your report…'
-              : 'Analysis can take a few seconds. Please keep this page open.'}
+              ? t('openingReport')
+              : t('analysisCanTake')}
           </p>
         )}
       </div>

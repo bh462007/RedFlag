@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useReadingOptions } from '@/components/ReadingOptionsContext';
 
 export interface CopyButtonProps {
   text: string;
@@ -9,6 +10,7 @@ export interface CopyButtonProps {
 }
 
 export function CopyButton({ text, className, label = 'Copy' }: CopyButtonProps) {
+  const { t } = useReadingOptions();
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -51,12 +53,12 @@ export function CopyButton({ text, className, label = 'Copy' }: CopyButtonProps)
       {copied ? (
         <>
           <Check className="h-3.5 w-3.5" aria-hidden />
-          <span>Copied ✓</span>
+          <span>{t('copied')}</span>
         </>
       ) : (
         <>
           <Copy className="h-3.5 w-3.5" aria-hidden />
-          <span>{label}</span>
+          <span>{label === 'Copy' ? t('copy') : label}</span>
         </>
       )}
     </button>
