@@ -13,7 +13,12 @@ const stages = [
 const ANALYSIS_TIMEOUT_MS = 30_000;
 
 export function Processing() {
-  const { state, setResult, setError: setAnalysisError } = useAnalysis();
+  const {
+    state,
+    setResult,
+    setError: setAnalysisError,
+    reset,
+  } = useAnalysis();
   const navigate = useNavigate();
 
   const [progress, setProgress] = useState(5);
@@ -227,6 +232,12 @@ export function Processing() {
             <button
               type="button"
               onClick={() => {
+                if (!state.text.trim()) {
+                  reset();
+                  navigate('/');
+                  return;
+                }
+
                 setError('');
                 setProgress(5);
                 setAttempt((value) => value + 1);

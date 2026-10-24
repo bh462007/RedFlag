@@ -1,8 +1,15 @@
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/Button';
+import { useAnalysis } from '@/context/AnalysisContext';
 
 export function AnalysisError({ message }: { message: string }) {
+  const { reset } = useAnalysis();
   const navigate = useNavigate();
+
+  const handleTryAgain = () => {
+    reset();
+    navigate('/');
+  };
 
   return (
     <main
@@ -13,7 +20,7 @@ export function AnalysisError({ message }: { message: string }) {
         <h1 className="font-display text-4xl text-ink">Analysis unavailable</h1>
         <p className="mt-3 text-muted">{message}</p>
         <div className="mt-6 flex flex-wrap gap-3">
-          <Button variant="primary" onClick={() => navigate('/processing')}>
+          <Button variant="primary" onClick={handleTryAgain}>
             Try again
           </Button>
           <Button variant="secondary" onClick={() => navigate('/')}>
