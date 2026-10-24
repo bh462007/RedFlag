@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useCallback,
   useState,
   useMemo,
   type ReactNode,
@@ -10,6 +11,7 @@ import type { AnalysisResult } from '@/data';
 export type AnalysisState = {
   text: string;
   result: AnalysisResult | null;
+  error: string | null;
 };
 
 export type AnalysisContextType = {
@@ -18,6 +20,7 @@ export type AnalysisContextType = {
   result: AnalysisResult | null;
   setText: (t: string) => void;
   setResult: (r: AnalysisResult | null) => void;
+  setError: (error: string | null) => void;
   reset: () => void;
 };
 
@@ -27,19 +30,24 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AnalysisState>({
     text: '',
     result: null,
+    error: null,
   });
 
-  const setText = (t: string) => {
-    setState({ text: t, result: null });
-  };
+  const setText = useCallback((t: string) => {
+    setState({ text: t, result: null, error: null });
+  }, []);
 
-  const setResult = (r: AnalysisResult | null) => {
-    setState((prev) => ({ ...prev, result: r }));
-  };
+  const setResult = useCallback((r: AnalysisResult | null) => {
+    setState((prev) => ({ ...prev, result: r, error: null }));
+  }, []);
 
-  const reset = () => {
-    setState({ text: '', result: null });
-  };
+  const setError = useCallback((error: string | null) => {
+    setState((prev) => ({ ...prev, error }));
+  }, []);
+
+  const reset = useCallback(() => {
+    setState({ text: '', result: null, error: null });
+  }, []);
 
   const value = useMemo(
     () => ({
@@ -48,9 +56,10 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       result: state.result,
       setText,
       setResult,
+      setError,
       reset,
     }),
-    [state]
+    [state, setText, setResult, setError, reset]
   );
 
   return (

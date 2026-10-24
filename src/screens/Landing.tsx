@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { useAnalysis } from '@/context/AnalysisContext';
-import { sampleMessage } from '@/data';
+import { sampleAnalysis, sampleMessage } from '@/data';
 import { cn } from '@/lib/utils';
 
 export function Landing() {
-  const { text, setText } = useAnalysis();
+  const { text, setText, setResult } = useAnalysis();
   const navigate = useNavigate();
   const [highlightVisible, setHighlightVisible] = useState(false);
 
@@ -83,7 +83,10 @@ export function Landing() {
             </Button>
             <Button
               variant="secondary"
-              onClick={() => navigate('/clause')}
+              onClick={() => {
+                setResult(sampleAnalysis);
+                navigate('/clause');
+              }}
               className="w-full sm:w-auto"
             >
               See a sample check

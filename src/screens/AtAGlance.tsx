@@ -1,9 +1,9 @@
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
+import { AnalysisError } from '@/components/AnalysisError';
 import { useAnalysis } from '@/context/AnalysisContext';
 import {
-  sampleAnalysis,
   type ClauseTone,
   type RedFlagSeverity,
 } from '@/data';
@@ -38,7 +38,14 @@ const severityMap: Record<
 export function AtAGlance() {
   const navigate = useNavigate();
   const { state } = useAnalysis();
-  const result = state.result ?? sampleAnalysis;
+  if (!state.result) {
+    return (
+      <AnalysisError
+        message={state.error ?? 'Submit a message before opening the report.'}
+      />
+    );
+  }
+  const result = state.result;
 
   const riskTier = getRiskTier(result.trustScore);
 

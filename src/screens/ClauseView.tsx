@@ -5,10 +5,10 @@ import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { ClauseSection } from '@/components/ClauseSection';
 import { CopyButton } from '@/components/CopyButton';
+import { AnalysisError } from '@/components/AnalysisError';
 import { ReadingOptionsDialog } from '@/components/ReadingOptionsDialog';
 import { useAnalysis } from '@/context/AnalysisContext';
 import {
-  sampleAnalysis,
   sampleMessage,
   type ClauseTone,
   type RedFlagSeverity,
@@ -115,7 +115,7 @@ function HighlightedMessage({
 export function ClauseView() {
   const navigate = useNavigate();
   const { state } = useAnalysis();
-  const result = state.result ?? sampleAnalysis;
+  const result = state.result;
   const messageText = state.text || sampleMessage;
 
   const [messageExpanded, setMessageExpanded] = useState(false);
@@ -139,9 +139,18 @@ export function ClauseView() {
   }, []);
 
   const stepsText = useMemo(
-    () => result.whatToDo.map((step, i) => `${i + 1}. ${step}`).join('\n'),
-    [result.whatToDo]
+    () =>
+      result?.whatToDo.map((step, i) => `${i + 1}. ${step}`).join('\n') ?? '',
+    [result]
   );
+
+  if (!result) {
+    return (
+      <AnalysisError
+        message={state.error ?? 'Submit a message before opening the report.'}
+      />
+    );
+  }
 
   const handleCopyMobileSteps = async () => {
     try {

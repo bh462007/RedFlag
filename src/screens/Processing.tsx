@@ -10,13 +10,15 @@ const stages = [
   'Analyzing risk indicators',
   'Preparing your report',
 ];
+const ANALYSIS_TIMEOUT_MS = 30_000;
 
 export function Processing() {
-  const { state, setResult } = useAnalysis();
+  const { state, setResult, setError: setAnalysisError } = useAnalysis();
   const navigate = useNavigate();
 
   const [progress, setProgress] = useState(5);
   const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
 
   const currentStage =
     progress < 25 ? 0 : progress < 65 ? 1 : 2;
@@ -24,6 +26,7 @@ export function Processing() {
   useEffect(() => {
     let cancelled = false;
     let navigationTimer: ReturnType<typeof setTimeout> | undefined;
+    let requestController: AbortController | undefined;
 
     // This is visual progress, not a measurement of the model's
     // internal reasoning. It stops at 90% until the API responds.
@@ -39,13 +42,26 @@ export function Processing() {
     }, 350);
 
     async function analyze() {
+      const controller = new AbortController();
+      requestController = controller;
+      const timeout = setTimeout(
+        () => controller.abort(),
+        ANALYSIS_TIMEOUT_MS,
+      );
+      const startedAt = Date.now();
+
       try {
         setError('');
+        setAnalysisError(null);
+        console.info('Analysis request started', {
+          textLength: state.text.length,
+        });
 
         const res = await fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: state.text }),
+          signal: controller.signal,
         });
 
         if (!res.ok) {
@@ -66,6 +82,10 @@ export function Processing() {
 
         if (cancelled) return;
 
+        console.info('Analysis request completed', {
+          status: res.status,
+          durationMs: Date.now() - startedAt,
+        });
         clearInterval(progressTimer);
         setProgress(100);
         setResult(data);
@@ -78,13 +98,27 @@ export function Processing() {
         if (cancelled) return;
 
         clearInterval(progressTimer);
-        console.error('Analysis failed:', err);
 
+        const message =
+          err instanceof DOMException && err.name === 'AbortError'
+            ? 'The analysis took longer than 30 seconds. Please try again.'
+            : err instanceof Error
+              ? err.message
+              : 'Unable to complete analysis.';
+
+        console.error('Analysis request failed', {
+          category:
+            err instanceof DOMException && err.name === 'AbortError'
+              ? 'timeout-or-cancelled'
+              : 'request-error',
+          durationMs: Date.now() - startedAt,
+        });
         setError(
-          err instanceof Error
-            ? `Analysis failed: ${err.message}`
-            : 'Analysis failed due to an unknown error.'
+          `Analysis failed: ${message}`,
         );
+        setAnalysisError(message);
+      } finally {
+        clearTimeout(timeout);
       }
     }
 
@@ -97,13 +131,14 @@ export function Processing() {
 
     return () => {
       cancelled = true;
+      requestController?.abort();
       clearInterval(progressTimer);
 
       if (navigationTimer) {
         clearTimeout(navigationTimer);
       }
     };
-  }, [state.text, setResult, navigate]);
+  }, [state.text, setResult, setAnalysisError, navigate, attempt]);
 
   return (
     <main
@@ -191,7 +226,11 @@ export function Processing() {
 
             <button
               type="button"
-              onClick={() => navigate('/')}
+              onClick={() => {
+                setError('');
+                setProgress(5);
+                setAttempt((value) => value + 1);
+              }}
               className="mt-4 rounded-md bg-primary px-5 py-3 text-sm text-white"
             >
               Try again

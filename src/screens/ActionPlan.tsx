@@ -3,15 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { CopyButton } from '@/components/CopyButton';
+import { AnalysisError } from '@/components/AnalysisError';
 import { useAnalysis } from '@/context/AnalysisContext';
-import { sampleAnalysis } from '@/data';
 import { cn } from '@/lib/utils';
 
 export function ActionPlan() {
   const navigate = useNavigate();
   const { state } = useAnalysis();
-  const result = state.result ?? sampleAnalysis;
-  const steps = result.whatToDo;
+  const result = state.result;
+  const steps = result?.whatToDo ?? [];
 
   const [checkedIds, setCheckedIds] = useState<string[]>([]);
   const [copiedAll, setCopiedAll] = useState(false);
@@ -26,6 +26,14 @@ export function ActionPlan() {
     () => steps.map((step, idx) => `${idx + 1}. ${step}`).join('\n\n'),
     [steps]
   );
+
+  if (!result) {
+    return (
+      <AnalysisError
+        message={state.error ?? 'Submit a message before opening the action plan.'}
+      />
+    );
+  }
 
   const handleCopyAll = async () => {
     try {
