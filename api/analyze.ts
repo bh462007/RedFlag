@@ -53,7 +53,43 @@ const analysisResultSchema = z
     }
   });
 
+const ANALYSIS_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    trustScore: { type: 'integer', minimum: 0, maximum: 100 },
+    verdict: { type: 'string', enum: ['safe', 'suspicious', 'scam'] },
+    redFlags: {
+      type: 'array',
+      maxItems: 6,
+      items: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', minLength: 1, maxLength: 120 },
+          severity: {
+            type: 'string',
+            enum: ['severe', 'high', 'medium', 'low'],
+          },
+          explanation: { type: 'string', minLength: 1 },
+        },
+        required: ['text', 'severity', 'explanation'],
+        additionalProperties: false,
+      },
+    },
+    whyItMatters: { type: 'string', minLength: 1 },
+    whatToDo: {
+      type: 'array',
+      minItems: 3,
+      maxItems: 6,
+      items: { type: 'string', minLength: 1 },
+    },
+  },
+  required: ['trustScore', 'verdict', 'redFlags', 'whyItMatters', 'whatToDo'],
+  additionalProperties: false,
+} as const;
+
 const UPSTREAM_TIMEOUT_MS = 20_000;
+const MIN_RETRY_AFTER_SECONDS = 1;
+const MAX_RETRY_AFTER_SECONDS = 300;
 
 export default async function handler(req: Request): Promise<Response> {
   const startedAt = Date.now();
@@ -109,7 +145,14 @@ export default async function handler(req: Request): Promise<Response> {
             { role: 'user', content: request.data.text },
           ],
           temperature: 0.2,
-          response_format: { type: 'json_object' },
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'analysis_result',
+              strict: true,
+              schema: ANALYSIS_JSON_SCHEMA,
+            },
+          },
         }),
         signal: controller.signal,
       },
@@ -119,12 +162,12 @@ export default async function handler(req: Request): Promise<Response> {
       const details = await groqRes.text();
       console.error('Groq request failed', {
         status: groqRes.status,
+        ...providerErrorSummary(details),
         durationMs: Date.now() - startedAt,
       });
 
       if (groqRes.status === 429) {
-        const match = details.match(/try again in ([\d.]+)s/i);
-        const retryAfterSeconds = match ? Math.ceil(Number(match[1])) : 10;
+        const retryAfterSeconds = getRetryAfterSeconds(groqRes, details);
         return new Response(
           JSON.stringify({
             error: 'AI service is temporarily busy. Please try again shortly.',
@@ -179,6 +222,11 @@ export default async function handler(req: Request): Promise<Response> {
     if (!result.success) {
       console.error('Analysis request failed', {
         category: 'invalid-ai-analysis',
+        validationIssues: result.error.issues.slice(0, 5).map((issue) => ({
+          code: issue.code,
+          path: issue.path.join('.'),
+          message: issue.message,
+        })),
         durationMs: Date.now() - startedAt,
       });
       return json({ error: 'AI returned an invalid analysis' }, 502);
@@ -199,6 +247,11 @@ export default async function handler(req: Request): Promise<Response> {
     }
     console.error('Analysis request failed', {
       category: 'handler-error',
+      errorName: err instanceof Error ? err.name : typeof err,
+      errorMessage:
+        err instanceof Error ? err.message : 'Non-Error value thrown',
+      errorStack:
+        err instanceof Error ? err.stack?.split('\n', 1)[0] : undefined,
       durationMs: Date.now() - startedAt,
     });
     return json({ error: 'Unable to complete analysis' }, 502);
@@ -212,4 +265,76 @@ function json(data: unknown, status: number): Response {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+function providerErrorSummary(details: string): {
+  providerErrorCode?: string;
+  providerErrorMessage?: string;
+} {
+  try {
+    const parsed: unknown = JSON.parse(details);
+    if (!parsed || typeof parsed !== 'object' || !('error' in parsed)) {
+      return {};
+    }
+
+    const error = parsed.error;
+    if (!error || typeof error !== 'object') {
+      return {};
+    }
+
+    const code =
+      'code' in error && typeof error.code === 'string'
+        ? error.code
+        : undefined;
+    const message =
+      'message' in error && typeof error.message === 'string'
+        ? error.message
+        : undefined;
+
+    return {
+      providerErrorCode: code?.slice(0, 100),
+      providerErrorMessage: message
+        ?.replace(/[\r\n\t]+/g, ' ')
+        .replace(/org_[A-Za-z0-9]+/g, '[redacted-org]')
+        .replace(/https?:\/\/\S+/gi, '[redacted-url]')
+        .slice(0, 300),
+    };
+  } catch {
+    return {};
+  }
+}
+
+export function getRetryAfterSeconds(
+  response: Response,
+  details: string,
+): number {
+  const retryAfterHeader = response.headers.get('Retry-After');
+  if (retryAfterHeader) {
+    const seconds = Number(retryAfterHeader);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return clampRetryAfterSeconds(seconds);
+    }
+
+    const retryAt = Date.parse(retryAfterHeader);
+    if (Number.isFinite(retryAt)) {
+      return clampRetryAfterSeconds((retryAt - Date.now()) / 1000);
+    }
+  }
+
+  const match = details.match(/try again in ([\d.]+)\s*s/i);
+  if (match) {
+    const seconds = Number(match[1]);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return clampRetryAfterSeconds(seconds);
+    }
+  }
+
+  return clampRetryAfterSeconds(10);
+}
+
+function clampRetryAfterSeconds(seconds: number): number {
+  return Math.min(
+    MAX_RETRY_AFTER_SECONDS,
+    Math.max(MIN_RETRY_AFTER_SECONDS, Math.ceil(seconds)),
+  );
 }

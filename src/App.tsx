@@ -8,17 +8,31 @@ import { Landing } from '@/screens/Landing';
 import { Processing } from '@/screens/Processing';
 import { ActionPlan } from '@/screens/ActionPlan';
 import { useReadingOptions } from '@/components/ReadingOptionsContext';
+import { Button } from '@/components/Button';
+import { useNavigate } from 'react-router-dom';
 
-function Placeholder() {
+function NotFound() {
   const { t } = useReadingOptions();
+  const navigate = useNavigate();
 
   return (
     <main
       id="main"
-      className="mx-auto flex min-h-[60vh] max-w-3xl flex-col items-center justify-center gap-2 px-6 py-16 text-center"
+      className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center gap-3 px-6 py-16 text-center"
     >
-      <h1 className="text-2xl font-semibold text-ink">{t('notFound')}</h1>
-      <p className="text-sm text-muted">{t('notFoundDescription')}</p>
+      <h1 className="font-display text-4xl text-ink">
+        404 — {t('notFound')}
+      </h1>
+      <p className="max-w-[420px] text-sm text-muted">
+        {t('notFoundDescription')}
+      </p>
+      <Button
+        variant="primary"
+        className="mt-3"
+        onClick={() => navigate('/')}
+      >
+        {t('backToStart')}
+      </Button>
     </main>
   );
 }
@@ -35,7 +49,7 @@ export default function App() {
             <Route path="/glance" element={<AtAGlance />} />
             <Route path="/clause" element={<ClauseView />} />
             <Route path="/plan" element={<ActionPlan />} />
-            <Route path="*" element={<Placeholder />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </AnalysisProvider>
       </ReadingOptionsProvider>

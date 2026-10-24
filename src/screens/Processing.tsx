@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, Loader2, Circle, AlertCircle } from 'lucide-react';
 import { useAnalysis } from '@/context/AnalysisContext';
@@ -23,6 +23,8 @@ export function Processing() {
   } = useAnalysis();
   const { t } = useReadingOptions();
   const navigate = useNavigate();
+  const translateRef = useRef(t);
+  translateRef.current = t;
 
   const [progress, setProgress] = useState(5);
   const [error, setError] = useState('');
@@ -34,6 +36,7 @@ export function Processing() {
   useEffect(() => {
     let cancelled = false;
     let navigationTimer: ReturnType<typeof setTimeout> | undefined;
+    let startTimer: ReturnType<typeof setTimeout> | undefined;
     let requestController: AbortController | undefined;
 
     // This is visual progress, not a measurement of the model's
@@ -77,12 +80,15 @@ export function Processing() {
 
           if (res.status === 429) {
             throw new Error(
-              t('busyService', { seconds: data.retryAfterSeconds ?? 10 })
+              translateRef.current('busyService', {
+                seconds: data.retryAfterSeconds ?? 10,
+              })
             );
           }
 
           throw new Error(
-            data.error ||             t('requestFailed', { status: res.status })
+            data.error ||
+              translateRef.current('requestFailed', { status: res.status }),
           );
         }
 
@@ -109,10 +115,10 @@ export function Processing() {
 
         const message =
           err instanceof DOMException && err.name === 'AbortError'
-            ? t('analysisTimeout')
+            ? translateRef.current('analysisTimeout')
             : err instanceof Error
               ? err.message
-              : t('unableToComplete');
+              : translateRef.current('unableToComplete');
 
         console.error('Analysis request failed', {
           category:
@@ -122,7 +128,7 @@ export function Processing() {
           durationMs: Date.now() - startedAt,
         });
         setError(
-          t('analysisFailed', { message }),
+          translateRef.current('analysisFailed', { message }),
         );
         setAnalysisError(message);
       } finally {
@@ -131,14 +137,21 @@ export function Processing() {
     }
 
     if (!state.text?.trim()) {
-      setError(t('noMessage'));
+      setError(translateRef.current('noMessage'));
       clearInterval(progressTimer);
     } else {
-      analyze();
+      // Deferring the request lets Strict Mode's development-only cleanup
+      // cancel the first effect setup before it reaches the server.
+      startTimer = setTimeout(() => {
+        void analyze();
+      }, 0);
     }
 
     return () => {
       cancelled = true;
+      if (startTimer) {
+        clearTimeout(startTimer);
+      }
       requestController?.abort();
       clearInterval(progressTimer);
 
@@ -146,7 +159,7 @@ export function Processing() {
         clearTimeout(navigationTimer);
       }
     };
-  }, [state.text, setResult, setAnalysisError, navigate, attempt, t]);
+  }, [state.text, setResult, setAnalysisError, navigate, attempt]);
 
   return (
     <main
