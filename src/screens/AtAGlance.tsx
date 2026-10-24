@@ -1,165 +1,186 @@
-import { Link } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
-import { cn } from '@/lib/utils';
-import type { ClauseTone } from '@/data';
+import { useAnalysis } from '@/context/AnalysisContext';
+import {
+  sampleAnalysis,
+  type ClauseTone,
+  type RedFlagSeverity,
+} from '@/data';
 
-type FactCardData = {
-  id: string;
-  label: string;
-  value: string;
-  subLine: string;
-  tone: ClauseTone;
-  chipLabel: string;
-  href?: string;
+const severityMap: Record<
+  RedFlagSeverity,
+  { tone: ClauseTone; label: string }
+> = {
+  severe: { tone: 'danger', label: 'SEVERE' },
+  high: { tone: 'danger', label: 'HIGH' },
+  medium: { tone: 'warn', label: 'MEDIUM' },
+  low: { tone: 'safe', label: 'LOW' },
 };
 
-const cards: FactCardData[] = [
-  {
-    id: 'rent',
-    label: 'Monthly rent',
-    value: '₹28,000',
-    subLine: 'Plus ₹3,500 maintenance',
-    tone: 'safe',
-    chipLabel: 'Fair',
-  },
-  {
-    id: 'term',
-    label: 'Lease term',
-    value: '11 months',
-    subLine: 'Lock-in matches the full term',
-    tone: 'safe',
-    chipLabel: 'Fair',
-  },
-  {
-    id: 'deposit',
-    label: 'Security deposit',
-    value: '₹1,68,000',
-    subLine: "Refund at the landlord's discretion",
-    tone: 'danger',
-    chipLabel: 'Risky',
-    href: '/clause',
-  },
-  {
-    id: 'lockin',
-    label: 'Lock-in period',
-    value: '11 months',
-    subLine: 'Forfeits your full deposit if you leave early',
-    tone: 'danger',
-    chipLabel: 'Risky',
-    href: '/clause?c=lockin',
-  },
-  {
-    id: 'notice',
-    label: 'Notice period',
-    value: '2 months',
-    subLine: 'Standard for the area',
-    tone: 'safe',
-    chipLabel: 'Fair',
-  },
-  {
-    id: 'increase',
-    label: 'Rent increase',
-    value: '10% / year',
-    subLine: 'Above the typical 5% in Bengaluru',
-    tone: 'warn',
-    chipLabel: 'Watch',
-  },
-];
-
 export function AtAGlance() {
+  const navigate = useNavigate();
+  const { state } = useAnalysis();
+  const result = state.result ?? sampleAnalysis;
+
+  const scoreColorClass =
+    result.verdict === 'scam'
+      ? 'text-danger'
+      : result.verdict === 'suspicious'
+      ? 'text-warn'
+      : 'text-safe';
+
+  const verdictTone: ClauseTone =
+    result.verdict === 'scam'
+      ? 'danger'
+      : result.verdict === 'suspicious'
+      ? 'warn'
+      : 'safe';
+
+  const verdictLabel =
+    result.verdict === 'scam'
+      ? 'SCAM'
+      : result.verdict === 'suspicious'
+      ? 'SUSPICIOUS'
+      : 'SAFE';
+
+  const riskLabel =
+    result.verdict === 'scam'
+      ? 'High risk'
+      : result.verdict === 'suspicious'
+      ? 'Needs checking'
+      : 'Low risk';
+
   return (
-    <div className="min-h-screen bg-paper">
-      <main
-        id="main"
-        className="mx-auto w-full max-w-[1200px] px-6 py-12 md:px-12 md:py-16"
-      >
-        <header className="mb-8 flex flex-col gap-2">
-          <h1 className="text-4xl font-semibold leading-tight text-ink md:text-5xl">
-            Your lease at a glance
+    <main
+      id="main"
+      className="min-h-[calc(100vh-64px)] bg-paper px-6 py-16"
+    >
+      <div className="mx-auto max-w-[1080px]">
+        {/* HEADER BLOCK (centered, margin-bottom 48px) */}
+        <header className="mb-12 text-center">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+            TRUST REPORT
+          </p>
+          <h1 className="mt-3 font-display text-[48px] leading-[1.05] tracking-[-0.02em] text-ink">
+            Your trust report card
           </h1>
-          <p className="text-base text-muted">
-            Sample lease · 1BHK, Indiranagar, Bengaluru · 11 months
+          <p className="mt-4 text-[16px] text-muted">
+            Six signals scanned across this message. Two are severe and one needs watching.
           </p>
         </header>
 
-        <section
-          aria-label="Lease facts"
-          className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"
-        >
-          {cards.map((card, index) => (
-            <FactCardCell key={card.id} card={card} index={index} />
-          ))}
+        {/* TRUST SCORE HERO CARD (mb-12) */}
+        <div className="mb-12 flex flex-col items-start justify-between gap-6 rounded-lg border border-border bg-surface p-10 md:flex-row md:items-center">
+          {/* Left side */}
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+              TRUST SCORE
+            </p>
+            <div className="mt-3 flex items-baseline">
+              <span
+                className={`font-display text-[72px] leading-none tracking-[-0.03em] tabular-nums md:text-[96px] ${scoreColorClass}`}
+              >
+                {result.trustScore}
+              </span>
+              <span className="mb-3 ml-2 text-3xl text-muted">/100</span>
+            </div>
+            <div className="mt-4 flex items-center gap-3">
+              <Chip tone={verdictTone}>{verdictLabel}</Chip>
+              <span className="text-[15px] text-muted">{riskLabel}</span>
+            </div>
+          </div>
+
+          {/* Right side (only if result.trustScore < 50) */}
+          {result.trustScore < 50 && (
+            <div className="max-w-[280px] text-left md:text-right">
+              <p className="text-[14px] leading-relaxed text-muted">
+                You should not respond to this message.
+              </p>
+              <p className="text-[14px] leading-relaxed text-muted">
+                Report it to cybercrime.gov.in.
+              </p>
+              <div className="mt-4">
+                <Button
+                  variant="ghost"
+                  onClick={() => navigate('/clause')}
+                  className="px-0 md:px-4"
+                >
+                  View full analysis →
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* SIGNAL GRID (mb-12) */}
+        <section aria-label="Signals detected" className="mb-12">
+          <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-muted">
+            SIGNALS DETECTED
+          </p>
+          {result.redFlags.length === 0 ? (
+            <div className="rounded-lg border border-border bg-surface p-5">
+              <div className="flex items-center gap-3">
+                <Chip tone="safe">SAFE</Chip>
+                <span className="text-[17px] font-semibold text-ink">
+                  No signals detected
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {result.redFlags.map((flag, idx) => {
+                const sev = severityMap[flag.severity] || severityMap.low;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => navigate('/clause')}
+                    className="flex flex-col rounded-lg border border-border bg-surface p-5 text-left transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    <div className="flex items-center">
+                      <Chip
+                        tone={sev.tone}
+                        className="h-6 px-2.5 text-[11px] font-semibold"
+                      >
+                        {sev.label}
+                      </Chip>
+                    </div>
+                    <p className="mt-3 text-[17px] font-semibold text-ink">
+                      {flag.text}
+                    </p>
+                    <p className="mt-2 text-[14px] leading-relaxed text-muted">
+                      {flag.explanation}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </section>
 
-        <Banner />
+        {/* BOTTOM CTA BANNER (mb-8) */}
+        <div className="mb-8 flex flex-col items-start justify-between gap-4 rounded-lg border border-border bg-surface p-6 sm:flex-row sm:items-center">
+          <div>
+            <p className="text-[17px] font-semibold text-ink">
+              Raise these 6 flags before you respond.
+            </p>
+            <p className="mt-1 text-[14px] text-muted">
+              Each one is a message you can send.
+            </p>
+          </div>
+          <Button variant="primary" onClick={() => navigate('/plan')}>
+            Open action plan →
+          </Button>
+        </div>
 
-        <p className="mt-8 text-center text-xs text-muted">
-          Sample lease. Figures are illustrative.
+        {/* BOTTOM MUTED LINE */}
+        <p className="mt-12 text-center text-[13px] text-muted">
+          Sample analysis. AI-generated. Not a substitute for professional advice.
         </p>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }
 
-function FactCardCell({ card, index }: { card: FactCardData; index: number }) {
-  const isClickable = Boolean(card.href);
-  // Cards 3 and 4 (0-indexed 2 and 3) get a 4px danger left border
-  const hasDangerBorder = index === 2 || index === 3;
-
-  const baseClass = cn(
-    'flex flex-col gap-4 rounded-lg border bg-surface p-6',
-    'transition-colors duration-150',
-    hasDangerBorder
-      ? 'border-border border-l-[4px] border-l-danger'
-      : 'border-border',
-    isClickable &&
-      'cursor-pointer hover:border-primary hover:border-l-danger focus-visible:border-primary',
-  );
-
-  const inner = (
-    <>
-      <span className="text-xs font-semibold uppercase tracking-wide text-muted">
-        {card.label}
-      </span>
-      <span className="text-[28px] font-semibold leading-none text-ink">
-        {card.value}
-      </span>
-      <span className="text-sm text-muted">{card.subLine}</span>
-      <Chip tone={card.tone} className="mt-2 w-fit">
-        {card.chipLabel}
-      </Chip>
-    </>
-  );
-
-  if (isClickable && card.href) {
-    return (
-      <Link to={card.href} className={baseClass} aria-label={`${card.label}: ${card.value}. ${card.subLine}. Read the clause.`}>
-        {inner}
-      </Link>
-    );
-  }
-
-  return <div className={baseClass}>{inner}</div>;
-}
-
-function Banner() {
-  return (
-    <section
-      role="note"
-      className="mt-8 flex flex-col gap-4 rounded-lg border border-danger bg-chip-danger p-6 md:flex-row md:items-center md:justify-between"
-    >
-      <p className="text-sm leading-relaxed text-ink md:text-[15px]">
-        <span aria-hidden className="font-semibold">⚠</span> 2 clauses can cost
-        you real money, and 3 more are worth negotiating. Here's what to raise.
-      </p>
-      <Link to="/clause" className="shrink-0">
-        <Button variant="primary" className="w-full md:w-auto">
-          Read clause by clause
-          <ArrowRight className="h-4 w-4" />
-        </Button>
-      </Link>
-    </section>
-  );
-}
+export default AtAGlance;
