@@ -24,10 +24,11 @@ const english = {
   seeSample: 'See a sample check',
   privacyNotice:
     'When you click Check, your text is sent to this app’s backend and then to Groq for AI analysis. Do not include passwords, OTPs, bank or card details, government ID numbers, or other sensitive personal information. Not a substitute for professional advice.',
-  sampleCost: 'Can cost you ₹1,68,000',
-  sampleHeading: 'Security deposit',
-  sampleDetail: 'Six months’ rent before you move in.',
-  sampleClause: 'The Tenant shall pay an interest-free refundable security deposit of ₹1,68,000 before possession.',
+  sampleCost: 'Potential scam signal',
+  sampleHeading: 'Training fee',
+  sampleDetail: 'Pay ₹4,999 to secure your internship.',
+  sampleClause:
+    'Selected candidates must pay a mandatory training and registration fee before receiving their offer letter.',
   preparingMessage: 'Preparing your message',
   analyzingRisk: 'Analyzing risk indicators',
   preparingReport: 'Preparing your report',
@@ -145,10 +146,11 @@ const hindi: Record<keyof typeof english, string> = {
   seeSample: 'नमूना जाँच देखें',
   privacyNotice:
     'जाँच पर क्लिक करने पर आपका टेक्स्ट इस ऐप के बैकएंड और फिर AI विश्लेषण के लिए Groq को भेजा जाता है। पासवर्ड, OTP, बैंक या कार्ड विवरण, सरकारी पहचान संख्या या अन्य संवेदनशील निजी जानकारी न डालें। यह पेशेवर सलाह का विकल्प नहीं है।',
-  sampleCost: '₹1,68,000 तक का खर्च',
-  sampleHeading: 'सुरक्षा जमा',
-  sampleDetail: 'जाने से पहले छह महीने का किराया।',
-  sampleClause: 'कब्ज़ा मिलने से पहले किरायेदार ₹1,68,000 की बिना ब्याज वाली वापसी योग्य सुरक्षा जमा देगा।',
+  sampleCost: 'संभावित घोटाले का संकेत',
+  sampleHeading: 'प्रशिक्षण शुल्क',
+  sampleDetail: 'इंटर्नशिप पक्की करने के लिए ₹4,999 दें।',
+  sampleClause:
+    'चयनित उम्मीदवारों को ऑफ़र लेटर मिलने से पहले अनिवार्य प्रशिक्षण और पंजीकरण शुल्क देना होगा।',
   preparingMessage: 'संदेश तैयार किया जा रहा है',
   analyzingRisk: 'जोखिम संकेतों का विश्लेषण हो रहा है',
   preparingReport: 'रिपोर्ट तैयार की जा रही है',
