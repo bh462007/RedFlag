@@ -282,7 +282,10 @@ async function readJsonBody(req: Request): Promise<unknown> {
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 
-export default async function handler(req: Request): Promise<Response> {
+export async function analyzeRequest(
+  req: Request,
+  configuredApiKey?: string,
+): Promise<Response> {
   const startedAt = Date.now();
 
   if (req.method !== 'POST') {
@@ -311,7 +314,7 @@ export default async function handler(req: Request): Promise<Response> {
     textLength: request.data.text.length,
   });
 
-  const apiKey = process.env.GROQ_API_KEY?.trim();
+  const apiKey = configuredApiKey?.trim();
   if (!apiKey) {
     console.error('Analysis request failed', {
       category: 'missing-api-key',
@@ -465,6 +468,10 @@ export default async function handler(req: Request): Promise<Response> {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export default function handler(req: Request): Promise<Response> {
+  return analyzeRequest(req, process.env.GROQ_API_KEY);
 }
 
 function json(data: unknown, status: number): Response {

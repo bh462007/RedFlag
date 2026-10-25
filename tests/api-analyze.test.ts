@@ -10,6 +10,8 @@ import {
   SEVERITY_WEIGHTS,
   verdictFromTrustScore,
 } from '../api/analyze.ts';
+import { onRequest as onAnalyzeRequest } from '../functions/api/analyze.ts';
+import { onRequest as onUnknownApiRequest } from '../functions/api/[[path]].ts';
 import { latestReportPath } from '../scripts/evaluate-analysis.ts';
 import { analysisFixtures } from './analysis-fixtures.ts';
 
@@ -313,6 +315,109 @@ test('accepts a valid request body', async () => {
       process.env.GROQ_API_KEY = originalApiKey;
     }
   }
+});
+
+test('Pages Function injects the provider secret without using process.env', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.GROQ_API_KEY;
+  delete process.env.GROQ_API_KEY;
+  let authorization = '';
+  globalThis.fetch = async (_input, init) => {
+    authorization = new Headers(init?.headers).get('Authorization') ?? '';
+    return new Response(
+      JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                redFlags: [],
+                whyItMatters: 'No concrete warning sign was identified.',
+                whatToDo: [
+                  'Verify the sender independently.',
+                  'Review the complete opportunity details.',
+                  'Avoid sharing sensitive information.',
+                ],
+              }),
+            },
+          },
+        ],
+      }),
+      { status: 200 },
+    );
+  };
+
+  try {
+    const response = await onAnalyzeRequest({
+      request: new Request('http://localhost/api/analyze', {
+        method: 'POST',
+        body: JSON.stringify({
+          text: 'This is a sufficiently long submitted message for testing.',
+        }),
+      }),
+      env: { GROQ_API_KEY: 'test-only-pages-secret' },
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(authorization, 'Bearer test-only-pages-secret');
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) {
+      delete process.env.GROQ_API_KEY;
+    } else {
+      process.env.GROQ_API_KEY = originalApiKey;
+    }
+  }
+});
+
+test('Pages Function returns the existing safe error when its secret is missing', async () => {
+  const originalFetch = globalThis.fetch;
+  let providerCalled = false;
+  globalThis.fetch = async () => {
+    providerCalled = true;
+    return new Response();
+  };
+
+  try {
+    const response = await onAnalyzeRequest({
+      request: new Request('http://localhost/api/analyze', {
+        method: 'POST',
+        body: JSON.stringify({
+          text: 'This is a sufficiently long submitted message for testing.',
+        }),
+      }),
+      env: {},
+    });
+
+    assert.equal(response.status, 500);
+    assert.deepEqual(await response.json(), {
+      error: 'Server misconfigured: GROQ_API_KEY missing',
+    });
+    assert.equal(providerCalled, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('Pages API unknown routes return JSON 404 responses', async () => {
+  const response = onUnknownApiRequest({
+    request: new Request('http://localhost/api/unknown'),
+  });
+
+  assert.equal(response.status, 404);
+  assert.equal(response.headers.get('Content-Type'), 'application/json');
+  assert.deepEqual(await response.json(), { error: 'API route not found' });
+});
+
+test('Pages analyzer route preserves method handling for unsupported methods', async () => {
+  const response = await onAnalyzeRequest({
+    request: new Request('http://localhost/api/analyze', {
+      method: 'GET',
+    }),
+    env: { GROQ_API_KEY: 'test-only-pages-secret' },
+  });
+
+  assert.equal(response.status, 405);
+  assert.deepEqual(await response.json(), { error: 'Method not allowed' });
 });
 
 test('rejects an oversized request body before calling the provider', async () => {
