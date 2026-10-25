@@ -227,8 +227,60 @@ export const ANALYSIS_JSON_SCHEMA = {
 } as const;
 
 const UPSTREAM_TIMEOUT_MS = 20_000;
+const MAX_REQUEST_BODY_BYTES = 65_536;
 const MIN_RETRY_AFTER_SECONDS = 1;
 const MAX_RETRY_AFTER_SECONDS = 300;
+
+class RequestBodyTooLargeError extends Error {
+  constructor() {
+    super('Request body too large');
+    this.name = 'RequestBodyTooLargeError';
+  }
+}
+
+async function readJsonBody(req: Request): Promise<unknown> {
+  const contentLength = req.headers.get('Content-Length');
+  if (
+    contentLength &&
+    Number.isInteger(Number(contentLength)) &&
+    Number(contentLength) > MAX_REQUEST_BODY_BYTES
+  ) {
+    throw new RequestBodyTooLargeError();
+  }
+
+  if (!req.body) {
+    return req.json();
+  }
+
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_REQUEST_BODY_BYTES) {
+        await reader.cancel();
+        throw new RequestBodyTooLargeError();
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
 
 export default async function handler(req: Request): Promise<Response> {
   const startedAt = Date.now();
@@ -239,8 +291,11 @@ export default async function handler(req: Request): Promise<Response> {
 
   let body: unknown;
   try {
-    body = await req.json();
-  } catch {
+    body = await readJsonBody(req);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return json({ error: 'Request body too large' }, 413);
+    }
     return json({ error: 'Invalid JSON body' }, 400);
   }
 

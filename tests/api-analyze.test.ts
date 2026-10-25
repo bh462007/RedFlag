@@ -267,6 +267,142 @@ test('calculates score and verdict instead of trusting model-provided fields', a
   }
 });
 
+test('accepts a valid request body', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.GROQ_API_KEY;
+  process.env.GROQ_API_KEY = 'test-only-key';
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                redFlags: [],
+                whyItMatters: 'No concrete warning sign was identified.',
+                whatToDo: [
+                  'Verify the sender independently.',
+                  'Review the complete opportunity details.',
+                  'Avoid sharing sensitive information.',
+                ],
+              }),
+            },
+          },
+        ],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+
+  try {
+    const response = await handler(
+      new Request('http://localhost/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: 'This is a sufficiently long submitted message for testing.',
+        }),
+      }),
+    );
+
+    assert.equal(response.status, 200);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) {
+      delete process.env.GROQ_API_KEY;
+    } else {
+      process.env.GROQ_API_KEY = originalApiKey;
+    }
+  }
+});
+
+test('rejects an oversized request body before calling the provider', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.GROQ_API_KEY;
+  let providerCalled = false;
+  process.env.GROQ_API_KEY = 'test-only-key';
+  globalThis.fetch = async () => {
+    providerCalled = true;
+    return new Response();
+  };
+
+  try {
+    const response = await handler(
+      new Request('http://localhost/api/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': '65537',
+        },
+        body: 'x'.repeat(65_537),
+      }),
+    );
+
+    assert.equal(response.status, 413);
+    assert.deepEqual(await response.json(), {
+      error: 'Request body too large',
+    });
+    assert.equal(providerCalled, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) {
+      delete process.env.GROQ_API_KEY;
+    } else {
+      process.env.GROQ_API_KEY = originalApiKey;
+    }
+  }
+});
+
+test('rejects an oversized request body without Content-Length', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.GROQ_API_KEY;
+  let providerCalled = false;
+  process.env.GROQ_API_KEY = 'test-only-key';
+  globalThis.fetch = async () => {
+    providerCalled = true;
+    return new Response();
+  };
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('x'.repeat(65_537)));
+      controller.close();
+    },
+  });
+
+  try {
+    const response = await handler(
+      new Request('http://localhost/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: stream,
+        duplex: 'half',
+      } as RequestInit & { duplex: 'half' }),
+    );
+
+    assert.equal(response.status, 413);
+    assert.equal(providerCalled, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) {
+      delete process.env.GROQ_API_KEY;
+    } else {
+      process.env.GROQ_API_KEY = originalApiKey;
+    }
+  }
+});
+
+test('keeps malformed JSON as a 400 client error', async () => {
+  const response = await handler(
+    new Request('http://localhost/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"text":',
+    }),
+  );
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: 'Invalid JSON body' });
+});
+
 test('enforces severe severity only for explicit payment-before-offer requirements', async () => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.GROQ_API_KEY;
