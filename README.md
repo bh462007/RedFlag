@@ -37,7 +37,7 @@ history.
 
 ## Demo and screenshots
 
-- **Live demo:** Not deployed yet. Add the production URL here when available.
+- **Live demo:** https://redflag-cem.pages.dev/
 - **Screenshots:** Add product screenshots here after a stable deployment is
   available.
 
@@ -55,14 +55,22 @@ The package is private and is not published as an npm package.
 
 ## Architecture
 
-The local development server uses Vite middleware to expose the analysis
-handler at the same-origin `/api/analyze` route. In a compatible serverless or
-Edge deployment, `api/analyze.ts` is the backend entry point.
+During local development, Vite middleware exposes the analysis handler at the
+same-origin `/api/analyze` route. In production, Cloudflare Pages Functions
+routes the same endpoint through `functions/api/analyze.ts`, which passes the
+server-side `GROQ_API_KEY` binding to the shared backend handler in
+`api/analyze.ts`. Unknown `/api/*` paths are handled by
+`functions/api/[[path]].ts` and return an API-style 404 response.
 
 ```mermaid
 flowchart LR
     User[User pastes a message] --> UI[React + Vite frontend]
-    UI -->|POST /api/analyze| API[api/analyze.ts]
+    UI -->|POST /api/analyze| Runtime{Runtime}
+    Runtime -->|Local| Vite[Vite middleware]
+    Runtime -->|Production| Pages[Cloudflare Pages Function]
+    Vite --> API[api/analyze.ts]
+    Pages --> Adapter[functions/api/analyze.ts]
+    Adapter --> API
     API --> Input[Body and text validation]
     Input --> Groq[Groq chat-completions API]
     Groq --> Provider[Strict JSON response]
@@ -102,6 +110,10 @@ responses with bounded retry timing.
 .
 ├── api/
 │   └── analyze.ts              # Edge-compatible analysis handler
+├── functions/
+│   └── api/
+│       ├── analyze.ts          # Cloudflare Pages production adapter
+│       └── [[path]].ts         # Unknown API-route fallback
 ├── scripts/
 │   └── evaluate-analysis.ts   # Manually invoked live-AI evaluator
 ├── src/
@@ -136,8 +148,8 @@ Prerequisites:
 Clone the repository using the verified Git remote:
 
 ```bash
-git clone https://github.com/bh462007/ClauseByClause.git
-cd ClauseByClause
+git clone https://github.com/bh462007/RedFlag.git
+cd RedFlag
 ```
 
 Install dependencies:
@@ -160,7 +172,8 @@ npm run dev
 ```
 
 Open the local Vite URL printed in the terminal. The custom Vite middleware
-routes `POST /api/analyze` to the local API handler.
+routes local `POST /api/analyze` requests to the shared API handler. Production
+requests use the Cloudflare Pages Function described below.
 
 ## API reference
 
@@ -313,18 +326,31 @@ when live evaluation is intended.
 
 ## Deployment
 
-There is currently no verified production deployment configuration in the
-repository. No `vercel.json`, Cloudflare Worker configuration, or equivalent
-deployment manifest is committed.
+RedFlag is deployed at
+[https://redflag-cem.pages.dev/](https://redflag-cem.pages.dev/) using Cloudflare
+Pages with Pages Functions.
 
-Cloudflare Workers is a planned deployment target, not an already-working
-deployment. Before deploying, the project needs a deliberate adapter for the
-Edge-compatible API handler, same-origin `/api/analyze` routing, SPA fallback
-for the client routes, and a server-side `GROQ_API_KEY` secret. Do not expose
-the key through client-side environment variables.
+The production setup is:
 
-The Vite middleware in `vite.config.ts` is for local development and should
-not be treated as the production API runtime.
+- Build command: `npm run build`
+- Static output directory: `dist`
+- Same-origin analysis endpoint: `POST /api/analyze`
+- Pages Function adapter: `functions/api/analyze.ts`
+- Shared backend handler: `api/analyze.ts`
+- Unknown API-route fallback: `functions/api/[[path]].ts`
+- Server-side secret: `GROQ_API_KEY`, configured in Cloudflare Pages
+
+`GROQ_API_KEY` must remain a server-side Cloudflare secret. Do not expose it
+through frontend code, a `VITE_` variable, or committed configuration.
+
+The Vite middleware in `vite.config.ts` is for local development only. Cloudflare
+Pages Functions handle the production API route, while Pages serves the built
+SPA assets and client-side routes.
+
+After a deployment, verify the live homepage, direct navigation to the
+client-side routes, `POST /api/analyze`, and an unknown `/api/*` route. Confirm
+that invalid API requests return sanitized JSON errors rather than the SPA
+HTML.
 
 ## Limitations and roadmap
 
@@ -337,13 +363,14 @@ not be treated as the production API runtime.
   persistent storage.
 - There is no file upload, URL scanning, browser extension, or external
   employer verification.
-- Production deployment and platform-level usage controls still need to be
-  configured and verified.
+- Platform-level usage controls such as application-specific rate limiting are
+  not currently implemented.
 - The package has no committed application license.
 
 ### Possible future work
 
-- Deploy and verify the application on the planned Cloudflare Workers target.
+- Add additional production smoke tests and operational checks for the
+  Cloudflare Pages deployment.
 - Add platform-appropriate rate limiting and provider-usage protection.
 - Improve evaluation of unsupported claims and semantic evidence grounding.
 - Add privacy-reviewed observability and deployment smoke tests.
