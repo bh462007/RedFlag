@@ -5,8 +5,7 @@ export const config = { runtime: 'edge' };
 const SYSTEM_PROMPT = `You are RedFlag, a scam-risk analysis assistant for Indian students evaluating internship offers, scholarships, job messages, and forwarded messages.
 Analyze only the supplied text. Do not invent facts or claim to verify websites, domains, companies, or identities.
 Identify evidence-based fraud indicators such as upfront payments, requests for secrets, deceptive links, threats, and implausible compensation. Treat missing information, unfamiliar companies, generic greetings, personal email addresses, and lack of an interview as verification concerns rather than proof.
-Return a trustScore from 0 to 100 where higher means fewer indicators, and keep verdict thresholds consistent: 70-100 safe, 40-69 suspicious, 0-39 scam. A message with no strong indicators must score at least 60.
-Return only valid JSON with trustScore, verdict, redFlags, whyItMatters, and whatToDo. Use no more than six evidence-based red flags, each with text, severity, and explanation. Return three to six practical safety steps.`;
+Return only valid JSON with redFlags, whyItMatters, and whatToDo. Use no more than six evidence-based red flags, each with text quoting or closely identifying the supplied text, severity, and explanation. Do not invent evidence. Return three to six practical safety steps. The backend calculates the trust score and verdict from the validated red flags.`;
 
 const requestSchema = z.object({
   text: z.string().trim().min(20).max(8000),
@@ -14,76 +13,136 @@ const requestSchema = z.object({
 
 const analysisResultSchema = z
   .object({
-    trustScore: z.number().int().min(0).max(100),
-    verdict: z.enum(['safe', 'suspicious', 'scam']),
     redFlags: z
       .array(
         z.object({
-          text: z.string().min(1).max(120),
+          text: z
+            .string()
+            .min(1)
+            .max(120)
+            .refine((value) => /\S/.test(value), 'Must contain non-whitespace content'),
           severity: z.enum(['severe', 'high', 'medium', 'low']),
-          explanation: z.string().min(1),
+          explanation: z
+            .string()
+            .min(1)
+            .refine((value) => /\S/.test(value), 'Must contain non-whitespace content'),
         }),
       )
       .max(6),
-    whyItMatters: z.string().min(1),
-    whatToDo: z.array(z.string().min(1)).min(3).max(6),
-  })
-  .superRefine((result, ctx) => {
-    const expectedVerdict =
-      result.trustScore >= 70
-        ? 'safe'
-        : result.trustScore >= 40
-          ? 'suspicious'
-          : 'scam';
-
-    if (result.verdict !== expectedVerdict) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['verdict'],
-        message: 'Verdict does not match trustScore',
-      });
-    }
-
-    if (result.trustScore > 80 && result.redFlags.length > 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['redFlags'],
-        message: 'Scores above 80 must not contain red flags',
-      });
-    }
+    whyItMatters: z
+      .string()
+      .min(1)
+      .refine((value) => /\S/.test(value), 'Must contain non-whitespace content'),
+    whatToDo: z
+      .array(
+        z
+          .string()
+          .min(1)
+          .refine((value) => /\S/.test(value), 'Must contain non-whitespace content'),
+      )
+      .min(3)
+      .max(6),
   });
+
+export const SEVERITY_WEIGHTS = {
+  severe: 35,
+  high: 20,
+  medium: 10,
+  low: 5,
+} as const;
+
+export const SCORE_BOUNDS = {
+  min: 0,
+  max: 100,
+} as const;
+
+type AnalysisDetails = z.infer<typeof analysisResultSchema>;
+type Verdict = 'safe' | 'suspicious' | 'scam';
+
+function normalizeFindingText(text: string): string {
+  return text
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}
+
+function deduplicateFindings(
+  findings: AnalysisDetails['redFlags'],
+): AnalysisDetails['redFlags'] {
+  const findingsByText = new Map<
+    string,
+    AnalysisDetails['redFlags'][number]
+  >();
+
+  for (const finding of findings) {
+    const normalized = normalizeFindingText(finding.text);
+    if (!normalized) continue;
+
+    const existing = findingsByText.get(normalized);
+    if (
+      !existing ||
+      SEVERITY_WEIGHTS[finding.severity] >
+        SEVERITY_WEIGHTS[existing.severity]
+    ) {
+      findingsByText.set(normalized, finding);
+    }
+  }
+
+  return [...findingsByText.values()];
+}
+
+/** Heuristic policy, not a calibrated fraud probability. Duplicate findings count once. */
+export function calculateTrustScore(
+  findings: AnalysisDetails['redFlags'],
+): number {
+  const penalty = deduplicateFindings(findings).reduce(
+    (total, finding) => total + SEVERITY_WEIGHTS[finding.severity],
+    0,
+  );
+  return Math.max(
+    SCORE_BOUNDS.min,
+    Math.min(SCORE_BOUNDS.max, SCORE_BOUNDS.max - penalty),
+  );
+}
+
+export function verdictFromTrustScore(score: number): Verdict {
+  return score >= 70 ? 'safe' : score >= 40 ? 'suspicious' : 'scam';
+}
 
 const ANALYSIS_JSON_SCHEMA = {
   type: 'object',
   properties: {
-    trustScore: { type: 'integer', minimum: 0, maximum: 100 },
-    verdict: { type: 'string', enum: ['safe', 'suspicious', 'scam'] },
     redFlags: {
       type: 'array',
       maxItems: 6,
       items: {
         type: 'object',
         properties: {
-          text: { type: 'string', minLength: 1, maxLength: 120 },
+          text: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 120,
+            pattern: '\\S',
+          },
           severity: {
             type: 'string',
             enum: ['severe', 'high', 'medium', 'low'],
           },
-          explanation: { type: 'string', minLength: 1 },
+          explanation: { type: 'string', minLength: 1, pattern: '\\S' },
         },
         required: ['text', 'severity', 'explanation'],
         additionalProperties: false,
       },
     },
-    whyItMatters: { type: 'string', minLength: 1 },
+    whyItMatters: { type: 'string', minLength: 1, pattern: '\\S' },
     whatToDo: {
       type: 'array',
       minItems: 3,
       maxItems: 6,
-      items: { type: 'string', minLength: 1 },
+      items: { type: 'string', minLength: 1, pattern: '\\S' },
     },
   },
-  required: ['trustScore', 'verdict', 'redFlags', 'whyItMatters', 'whatToDo'],
+  required: ['redFlags', 'whyItMatters', 'whatToDo'],
   additionalProperties: false,
 } as const;
 
@@ -236,7 +295,15 @@ export default async function handler(req: Request): Promise<Response> {
       status: 200,
       durationMs: Date.now() - startedAt,
     });
-    return json(result.data, 200);
+    const trustScore = calculateTrustScore(result.data.redFlags);
+    return json(
+      {
+        ...result.data,
+        trustScore,
+        verdict: verdictFromTrustScore(trustScore),
+      },
+      200,
+    );
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
       console.error('Analysis request failed', {
