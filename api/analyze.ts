@@ -2,16 +2,21 @@ import { z } from 'zod';
 
 export const config = { runtime: 'edge' };
 
-const SYSTEM_PROMPT = `You are RedFlag, a scam-risk analysis assistant for Indian students evaluating internship offers, scholarships, job messages, and forwarded messages.
-Analyze only the supplied text. Do not invent facts or claim to verify websites, domains, companies, or identities.
-Identify evidence-based fraud indicators such as upfront payments, requests for secrets, deceptive links, threats, and implausible compensation. Treat missing information, unfamiliar companies, generic greetings, personal email addresses, and lack of an interview as verification concerns rather than proof.
-Return only valid JSON with redFlags, whyItMatters, and whatToDo. Use no more than six evidence-based red flags, each with text quoting or closely identifying the supplied text, severity, and explanation. Do not invent evidence. Return three to six practical safety steps. The backend calculates the trust score and verdict from the validated red flags.`;
+export const SYSTEM_PROMPT = `You are RedFlag, a scam-risk analysis assistant for Indian students evaluating internship offers, scholarships, job messages, and forwarded messages.
+Analyze only the exact submitted message. Ground every red flag in that message, preferably using a short exact quote or distinctive phrase from it in redFlags[].text. Explain why that specific phrase indicates a risk. Do not invent actions, requests, links, fees, identities, promises, or other facts absent from the input, and never claim external verification was performed.
+Assign severity using these definitions as guidance based on the actual wording, not as automatic keyword rules:
+- severe: direct requests for OTPs, passwords, banking or card credentials, or explicit payment as a condition of receiving an offer.
+- high: explicit upfront fees, coercive threats, deceptive-link instructions evident from the text, or strongly implausible guaranteed claims.
+- medium: materially misleading promises or multiple concrete verification concerns without a direct severe indicator.
+- low: limited verification concerns that warrant checking but are not proof of fraud.
+Do not treat unfamiliar companies, generic greetings, personal email addresses, missing company/contact details, missing interview details, incomplete role or stipend information, routine form deadlines, or ordinary requests for availability alone as red flags. These may warrant neutral verification advice in whatToDo, but do not create redFlags for them unless the message contains a separate, concrete risk indicator. Do not infer malicious intent from a routine form or link mention, or invent a purpose for collecting data. Reserve severe for direct requests for OTPs, passwords, banking/card credentials, or explicit payment required to receive an offer. A request for general identity details or a coercive deadline alone is not severe; classify it according to the actual wording and the existing rubric. Treat strongly implausible guaranteed salary or placement claims as potential red flags, but do not flag short duration or missing details separately when they merely provide context for the same claim. Keep findings concise, grounded in the submitted message, and limited to distinct, concrete risks. Do not use explanations to assert that a sender intends to deceive, steal credentials, or commit fraud unless the supplied text directly supports that claim. Make whyItMatters and whatToDo relevant to the actual findings, and use practical safety advice rather than inventing risks when no red flags are present.
+Return only valid JSON with redFlags, whyItMatters, and whatToDo. Use no more than six evidence-based red flags. Return three to six practical safety steps. The backend calculates the trust score and verdict from the validated red flags.`;
 
 const requestSchema = z.object({
   text: z.string().trim().min(20).max(8000),
 });
 
-const analysisResultSchema = z
+export const analysisResultSchema = z
   .object({
     redFlags: z
       .array(
@@ -91,6 +96,81 @@ function deduplicateFindings(
   return [...findingsByText.values()];
 }
 
+function paymentBeforeOfferQuote(text: string): string | undefined {
+  const sentences = text.match(/[^.!?\n]+[.!?]?/g) ?? [text];
+  const offerCondition =
+    /\b(?:before|prior to|to receive|to get|in order to receive)\b[\s\S]*\boffer(?:\s+letter)?\b/i;
+  const negativeRequirement =
+    /\b(?:no|not|never)\s+(?:payment|fee|fees)\s+(?:is\s+)?required\b|\b(?:payment|fee|fees)\s+is\s+not\s+required\b|\b(?:do|does|did)\s+not\s+need\s+to\s+pay\b|\b(?:am|are|is|was|were)\s+not\s+required\s+to\s+pay\b|\b(?:don't|doesn't|didn't|isn't|aren't|wasn't|weren't)\s+(?:need|required)\b/i;
+  const explicitPaymentRequirement =
+    /\b(?:payment|fee|fees)\s+(?:is\s+)?required\b|\b(?:must|need to|have to)\s+pay\b|\bpay\b[\s\S]*\b(?:before|prior to)\b/i;
+
+  for (const sentence of sentences) {
+    if (
+      !offerCondition.test(sentence) ||
+      negativeRequirement.test(sentence) ||
+      !explicitPaymentRequirement.test(sentence)
+    ) {
+      continue;
+    }
+
+    const quote = sentence.trim();
+    return quote.length <= 120 ? quote : quote.slice(0, 120).trimEnd();
+  }
+
+  return undefined;
+}
+
+function findingsOverlap(
+  first: string,
+  second: string,
+): boolean {
+  const normalizedFirst = normalizeFindingText(first);
+  const normalizedSecond = normalizeFindingText(second);
+  return (
+    normalizedFirst.includes(normalizedSecond) ||
+    normalizedSecond.includes(normalizedFirst)
+  );
+}
+
+function applyDeterministicPolicies(
+  text: string,
+  findings: AnalysisDetails['redFlags'],
+): AnalysisDetails['redFlags'] {
+  const quote = paymentBeforeOfferQuote(text);
+  if (!quote) return findings;
+
+  const remaining = findings.filter(
+    (finding) =>
+      !findingsOverlap(finding.text, quote) &&
+      !/\b(?:pay|payment|fee|fees)\b/i.test(finding.text),
+  );
+  const enforcedFinding = {
+    text: quote,
+    severity: 'severe' as const,
+    explanation:
+      'This message explicitly requires payment before the offer is received.',
+  };
+
+  if (remaining.length < 6) {
+    return [...remaining, enforcedFinding];
+  }
+
+  const lowestSeverityIndex = remaining.reduce(
+    (lowestIndex, finding, index, allFindings) =>
+      SEVERITY_WEIGHTS[finding.severity] <
+      SEVERITY_WEIGHTS[allFindings[lowestIndex].severity]
+        ? index
+        : lowestIndex,
+    0,
+  );
+  return [
+    ...remaining.slice(0, lowestSeverityIndex),
+    ...remaining.slice(lowestSeverityIndex + 1),
+    enforcedFinding,
+  ];
+}
+
 /** Heuristic policy, not a calibrated fraud probability. Duplicate findings count once. */
 export function calculateTrustScore(
   findings: AnalysisDetails['redFlags'],
@@ -109,7 +189,7 @@ export function verdictFromTrustScore(score: number): Verdict {
   return score >= 70 ? 'safe' : score >= 40 ? 'suspicious' : 'scam';
 }
 
-const ANALYSIS_JSON_SCHEMA = {
+export const ANALYSIS_JSON_SCHEMA = {
   type: 'object',
   properties: {
     redFlags: {
@@ -295,10 +375,15 @@ export default async function handler(req: Request): Promise<Response> {
       status: 200,
       durationMs: Date.now() - startedAt,
     });
-    const trustScore = calculateTrustScore(result.data.redFlags);
+    const redFlags = applyDeterministicPolicies(
+      request.data.text,
+      result.data.redFlags,
+    );
+    const trustScore = calculateTrustScore(redFlags);
     return json(
       {
         ...result.data,
+        redFlags,
         trustScore,
         verdict: verdictFromTrustScore(trustScore),
       },

@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "node --experimental-strip-types --test tests/api-analyze.test.ts",
+    "evaluate:analysis": "node --env-file=.env.local --experimental-strip-types scripts/evaluate-analysis.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "typecheck:api": "tsc --noEmit -p tsconfig.api.json"

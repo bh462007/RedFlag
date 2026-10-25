@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   default as handler,
   calculateTrustScore,
@@ -7,6 +10,8 @@ import {
   SEVERITY_WEIGHTS,
   verdictFromTrustScore,
 } from '../api/analyze.ts';
+import { latestReportPath } from '../scripts/evaluate-analysis.ts';
+import { analysisFixtures } from './analysis-fixtures.ts';
 
 const FIXED_NOW = Date.parse('2026-01-01T00:00:00.000Z');
 const FALLBACK_SECONDS = 10;
@@ -93,6 +98,19 @@ test('derives verdicts from score boundaries', () => {
   assert.equal(verdictFromTrustScore(0), 'scam');
 });
 
+test('keeps payment-before-offer in the severe policy range', () => {
+  const fixture = analysisFixtures.find(
+    ({ id }) => id === 'training-fee-before-offer',
+  );
+  assert.ok(fixture);
+  assert.deepEqual(fixture.acceptableSeverityRange, ['severe']);
+  const score = calculateTrustScore([
+    finding('pay a 4,999 mandatory training fee', 'severe'),
+  ]);
+  assert.equal(score, 65);
+  assert.equal(verdictFromTrustScore(score), 'suspicious');
+});
+
 test('parses numeric and fractional Retry-After values', () => {
   const numeric = getRetryAfterSeconds(
     new Response(null, { headers: { 'Retry-After': '12' } }),
@@ -168,6 +186,24 @@ test('clamps extreme retry delays', () => {
   assertBoundedDelay(hugeHint);
 });
 
+test('selects the latest evaluation report and ignores unrelated JSON files', async () => {
+  const reportDirectory = await mkdtemp(
+    join(tmpdir(), 'clause-by-clause-reports-'),
+  );
+  try {
+    const expectedReport = join(
+      reportDirectory,
+      'evaluation-2026-01-02T00-00-00-000Z.json',
+    );
+    await writeFile(expectedReport, '{}', 'utf8');
+    await writeFile(join(reportDirectory, 'notes-9999.json'), '{}', 'utf8');
+
+    assert.equal(await latestReportPath(reportDirectory), expectedReport);
+  } finally {
+    await rm(reportDirectory, { recursive: true, force: true });
+  }
+});
+
 test('calculates score and verdict instead of trusting model-provided fields', async () => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.GROQ_API_KEY;
@@ -221,6 +257,236 @@ test('calculates score and verdict instead of trusting model-provided fields', a
     assert.equal(response.status, 200);
     assert.equal(body.trustScore, 65);
     assert.equal(body.verdict, 'suspicious');
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) {
+      delete process.env.GROQ_API_KEY;
+    } else {
+      process.env.GROQ_API_KEY = originalApiKey;
+    }
+  }
+});
+
+test('enforces severe severity only for explicit payment-before-offer requirements', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.GROQ_API_KEY;
+  const cases = [
+    {
+      message: 'Payment is required before receiving your offer letter.',
+      triggers: true,
+    },
+    {
+      message:
+        'Selected candidates must pay a mandatory fee before receiving their offer letter.',
+      triggers: true,
+    },
+    {
+      message: 'No payment is required before receiving your offer letter.',
+      triggers: false,
+    },
+    {
+      message: 'You do not need to pay before receiving your offer letter.',
+      triggers: false,
+    },
+    {
+      message:
+        'You are not required to pay before receiving your offer letter.',
+      triggers: false,
+    },
+    {
+      message: 'Payment is not required before receiving your offer letter.',
+      triggers: false,
+    },
+    {
+      message:
+        'Pay the registration fee after receiving your offer letter.',
+      triggers: false,
+    },
+    {
+      message:
+        'The training fee and offer letter will be discussed during the call.',
+      triggers: false,
+    },
+    {
+      message:
+        'The training program costs ₹4,999, payable after the offer letter is issued.',
+      triggers: false,
+    },
+  ];
+
+  process.env.GROQ_API_KEY = 'test-only-key';
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                redFlags: [
+                  {
+                    text: 'payment',
+                    severity: 'high',
+                    explanation: 'The message asks for a training fee.',
+                  },
+                ],
+                whyItMatters: 'Payment before an offer requires careful verification.',
+                whatToDo: [
+                  'Verify the opportunity independently.',
+                  'Do not pay before verification.',
+                  'Use official contact details to confirm the offer.',
+                ],
+              }),
+            },
+          },
+        ],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+
+  try {
+    for (const { message, triggers } of cases) {
+      const response = await handler(
+        new Request('http://localhost/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: message }),
+        }),
+      );
+      const body = (await response.json()) as {
+        redFlags?: Array<{ text: string; severity: string }>;
+        trustScore?: number;
+        verdict?: string;
+      };
+
+      assert.equal(response.status, 200, message);
+      if (triggers) {
+        assert.equal(body.redFlags?.length, 1, message);
+        assert.equal(body.redFlags?.[0]?.text, message, message);
+        assert.equal(body.redFlags?.[0]?.severity, 'severe', message);
+        assert.equal(body.trustScore, 65, message);
+        assert.equal(body.verdict, 'suspicious', message);
+      } else {
+        assert.equal(body.redFlags?.length, 1, message);
+        assert.equal(body.redFlags?.[0]?.severity, 'high', message);
+        assert.equal(body.trustScore, 80, message);
+        assert.equal(body.verdict, 'safe', message);
+      }
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) {
+      delete process.env.GROQ_API_KEY;
+    } else {
+      process.env.GROQ_API_KEY = originalApiKey;
+    }
+  }
+});
+
+test('validates offline fixtures and scores them through the backend handler', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.GROQ_API_KEY;
+
+  process.env.GROQ_API_KEY = 'test-only-key';
+
+  try {
+    for (const fixture of analysisFixtures) {
+      assert.ok(fixture.id.trim(), 'fixture ID must be non-empty');
+      assert.ok(fixture.text.trim(), `${fixture.id}: text must be non-empty`);
+      for (const warningSign of fixture.expectedWarningSigns) {
+        assert.ok(
+          warningSign.trim(),
+          `${fixture.id}: warning sign must be non-empty`,
+        );
+        assert.ok(
+          fixture.text.toLocaleLowerCase().includes(warningSign.toLocaleLowerCase()),
+          `${fixture.id}: warning sign must be present in fixture text`,
+        );
+      }
+
+      const severity = fixture.acceptableSeverityRange[0];
+      if (fixture.expectedWarningSigns.length > 0) {
+        assert.ok(severity, `${fixture.id}: severity range must be non-empty`);
+        assert.ok(
+          fixture.acceptableSeverityRange.includes(severity),
+          `${fixture.id}: chosen severity must be allowed`,
+        );
+      } else {
+        assert.deepEqual(
+          fixture.acceptableSeverityRange,
+          [],
+          `${fixture.id}: no-warning fixture must have no severity range`,
+        );
+      }
+      const redFlags =
+        severity && fixture.expectedWarningSigns.length > 0
+          ? [finding(fixture.expectedWarningSigns[0], severity)]
+          : [];
+      const expectedResponseRedFlags =
+        fixture.id === 'training-fee-before-offer'
+          ? [
+              {
+                text: fixture.text,
+                severity: 'severe' as const,
+                explanation:
+                  'This message explicitly requires payment before the offer is received.',
+              },
+            ]
+          : redFlags;
+
+      globalThis.fetch = async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    redFlags,
+                    whyItMatters: fixture.expectedWarningSigns.length
+                      ? 'These points should be checked against the supplied message.'
+                      : 'No concrete warning sign is present in the supplied message.',
+                    whatToDo: [
+                      'Verify the details using an independent official channel.',
+                      'Do not share sensitive information or pay before verification.',
+                      'Ask for clarification when the message is incomplete.',
+                    ],
+                  }),
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+
+      const response = await handler(
+        new Request('http://localhost/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: fixture.text }),
+        }),
+      );
+      const body = (await response.json()) as {
+        redFlags?: unknown[];
+        trustScore?: number;
+        verdict?: string;
+      };
+
+      assert.equal(response.status, 200, fixture.id);
+      assert.deepEqual(body.redFlags, expectedResponseRedFlags, fixture.id);
+      if (fixture.expectedWarningSigns.length === 0) {
+        assert.equal(body.trustScore, 100, fixture.id);
+        assert.equal(body.verdict, 'safe', fixture.id);
+      }
+      assert.equal(
+        body.trustScore,
+        calculateTrustScore(expectedResponseRedFlags),
+        fixture.id,
+      );
+      assert.equal(
+        body.verdict,
+        verdictFromTrustScore(body.trustScore ?? -1),
+        fixture.id,
+      );
+    }
   } finally {
     globalThis.fetch = originalFetch;
     if (originalApiKey === undefined) {
