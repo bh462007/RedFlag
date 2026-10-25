@@ -1,4 +1,10 @@
-# ClauseByClause
+# RedFlag
+
+RedFlag helps students spot potential scam indicators in internship offers,
+scholarship links, recruitment messages, and forwarded messages before they
+respond.
+
+**Spot the red flags before you apply.**
 
 [![Open in Bolt](https://bolt.new/static/open-in-bolt.svg)](https://bolt.new/~/sb1-uxxvx5se)
 

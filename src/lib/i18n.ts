@@ -15,7 +15,7 @@ const english = {
   hindi: 'हिंदी',
   accessibilityHelp: 'Every screen works with a keyboard and a screen reader.',
   messageCheck: '01 — MESSAGE CHECK',
-  landingTitle: 'That internship offer. Is it real?',
+  landingTitle: 'Spot the red flags before you apply.',
   landingDescription:
     'Paste any internship offer, scholarship link, or forwarded message. RedFlag explains the scam signals in plain English, gives a trust score, and tells you exactly what to check next.',
   messageLabel: 'Message, offer, or link to check',
@@ -137,7 +137,7 @@ const hindi: Record<keyof typeof english, string> = {
   hindi: 'हिंदी',
   accessibilityHelp: 'हर स्क्रीन कीबोर्ड और स्क्रीन रीडर के साथ काम करती है।',
   messageCheck: '01 — संदेश जाँच',
-  landingTitle: 'यह इंटर्नशिप ऑफ़र असली है?',
+  landingTitle: 'आवेदन करने से पहले घोटाले के संकेत पहचानें।',
   landingDescription:
     'कोई इंटर्नशिप ऑफ़र, छात्रवृत्ति लिंक या फ़ॉरवर्ड किया हुआ संदेश डालें। RedFlag घोटाले के संकेत समझाता है, भरोसा स्कोर देता है और अगला कदम बताता है।',
   messageLabel: 'जाँचने के लिए संदेश, ऑफ़र या लिंक',
